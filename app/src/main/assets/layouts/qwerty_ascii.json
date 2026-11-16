@@ -303,10 +303,10 @@
         {
           "weight": 1.4,
           "center": {
-            "label": "?123",
+            "label": "かな",
             "action": {
               "type": "layout",
-              "layoutId": "qwerty_symbol"
+              "layoutId": "qwerty_kana"
             }
           },
           "style": "MODIFIER"
@@ -314,10 +314,10 @@
         {
           "weight": 1.2,
           "center": {
-            "label": "かな",
+            "label": "?123",
             "action": {
               "type": "layout",
-              "layoutId": "qwerty_kana"
+              "layoutId": "qwerty_symbol"
             }
           },
           "style": "MODIFIER"

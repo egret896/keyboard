@@ -7,6 +7,7 @@ import android.graphics.PointF
 import android.graphics.RectF
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.util.AttributeSet
 import android.view.MotionEvent
 import android.view.View
@@ -90,6 +91,54 @@ class FlickKeyboardView @JvmOverloads constructor(
      */
     var guideOverflowTop: Float = 0f
 
+    /**
+     * ⌫ を長押ししたとき、キーの背景にゲージがたまり、満タンで全削除する。
+     * false のときは従来どおり長押しで1文字ずつ連続削除する。
+     */
+    var holdToClear: Boolean = true
+
+    /** ゲージが満タンになったときに呼ばれる（全削除）。 */
+    var clearAllListener: (() -> Unit)? = null
+
+    /** ゲージを表示中の ⌫ キー。null ならゲージなし。 */
+    private var gaugeKey: PlacedKey? = null
+    private var gaugeStartedAt = 0L
+    private val gaugePaint = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val gaugeTicker = object : Runnable {
+        override fun run() {
+            val key = gaugeKey ?: return
+            if (gaugeProgress() >= 1f) {
+                gaugeKey = null
+                performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
+                clearAllListener?.invoke()
+                invalidate()
+                return
+            }
+            invalidate(key.bounds.left.toInt(), key.bounds.top.toInt(),
+                key.bounds.right.toInt() + 1, key.bounds.bottom.toInt() + 1)
+            handler.postDelayed(this, 16)
+        }
+    }
+
+    private fun gaugeProgress(): Float {
+        val elapsed = SystemClock.uptimeMillis() - gaugeStartedAt - GAUGE_DELAY_MS
+        return (elapsed.toFloat() / GAUGE_FILL_MS).coerceIn(0f, 1f)
+    }
+
+    private fun startGauge(key: PlacedKey) {
+        gaugeKey = key
+        gaugeStartedAt = SystemClock.uptimeMillis()
+        handler.removeCallbacks(gaugeTicker)
+        handler.postDelayed(gaugeTicker, GAUGE_DELAY_MS)
+    }
+
+    private fun cancelGauge() {
+        if (gaugeKey == null) return
+        gaugeKey = null
+        handler.removeCallbacks(gaugeTicker)
+        invalidate()
+    }
+
     private data class PlacedKey(val spec: KeySpec, val bounds: RectF)
 
     /** State for one finger currently on the keyboard. */
@@ -131,6 +180,7 @@ class FlickKeyboardView @JvmOverloads constructor(
         labelPaint.color = theme.labelColor
         guideBackgroundPaint.color = theme.flickGuideColor
         guideLabelPaint.color = theme.flickGuideLabelColor
+        gaugePaint.color = GAUGE_COLOR
         // The parent paints the panel — a colour, or the user's background image. Painting it here
         // too would cover that image with an opaque rectangle.
     }
@@ -194,6 +244,11 @@ class FlickKeyboardView @JvmOverloads constructor(
                 else -> modifierPaint
             }
             if (paint != null) canvas.drawRoundRect(placed.bounds, radius, radius, paint)
+            if (placed === gaugeKey) drawGauge(canvas, placed, radius)
+            if (placed.spec.center.action is KeyAction.OpenPanel) {
+                drawPanelIcon(canvas, placed.bounds)
+                continue
+            }
             val baseline = placed.bounds.centerY() - (labelPaint.descent() + labelPaint.ascent()) / 2f
             canvas.drawText(faceLabel(placed.spec), placed.bounds.centerX(), baseline, labelPaint)
         }
@@ -206,6 +261,44 @@ class FlickKeyboardView @JvmOverloads constructor(
                 FlickGuideStyle.DIRECTIONS -> drawFlickGuide(canvas, touch, radius)
             }
         }
+    }
+
+    /** ⌫ の背景に、左から右へたまっていくゲージを描く。 */
+    private fun drawGauge(canvas: Canvas, key: PlacedKey, radius: Float) {
+        val progress = gaugeProgress()
+        if (progress <= 0f) return
+        val b = key.bounds
+        canvas.save()
+        canvas.clipRect(b.left, b.top, b.left + b.width() * progress, b.bottom)
+        canvas.drawRoundRect(b, radius, radius, gaugePaint)
+        canvas.restore()
+    }
+
+    /**
+     * 「☺記」キーを、絵文字ではなく線だけのにこちゃんマーク＋「記」で描く。
+     * 絵文字フォントだとそこだけカラーになってしまうので、自分で線を引く。
+     */
+    private fun drawPanelIcon(canvas: Canvas, bounds: RectF) {
+        val textWidth = labelPaint.measureText("記")
+        val r = labelPaint.textSize * 0.42f
+        val gap = r * 0.35f
+        val total = r * 2 + gap + textWidth
+        val cx = bounds.centerX() - total / 2f + r
+        val cy = bounds.centerY()
+        val stroke = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = labelPaint.color
+            style = Paint.Style.STROKE
+            strokeWidth = r * 0.16f
+            strokeCap = Paint.Cap.ROUND
+        }
+        canvas.drawCircle(cx, cy, r, stroke)
+        val eye = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = labelPaint.color }
+        canvas.drawCircle(cx - r * 0.35f, cy - r * 0.25f, r * 0.11f, eye)
+        canvas.drawCircle(cx + r * 0.35f, cy - r * 0.25f, r * 0.11f, eye)
+        val mouth = RectF(cx - r * 0.5f, cy - r * 0.3f, cx + r * 0.5f, cy + r * 0.55f)
+        canvas.drawArc(mouth, 20f, 140f, false, stroke)
+        val baseline = cy - (labelPaint.descent() + labelPaint.ascent()) / 2f
+        canvas.drawText("記", cx + r + gap + textWidth / 2f, baseline, labelPaint)
     }
 
     /**
@@ -342,6 +435,7 @@ class FlickKeyboardView @JvmOverloads constructor(
 
             MotionEvent.ACTION_CANCEL -> {
                 cancelRepeat()
+                cancelGauge()
                 activeTouches.clear()
                 invalidate()
             }
@@ -356,6 +450,7 @@ class FlickKeyboardView @JvmOverloads constructor(
         activeTouches.values.forEach { commit(it) }
         activeTouches.clear()
         cancelRepeat()
+        cancelGauge()
 
         val touch = Touch(key, x, y)
         activeTouches[pointerId] = touch
@@ -368,7 +463,11 @@ class FlickKeyboardView @JvmOverloads constructor(
             // the finger lifts.
             touch.firedOnPress = true
             emit(touch)
-            scheduleRepeat(key.spec)
+            if (holdToClear && key.spec.center.action is KeyAction.Backspace) {
+                startGauge(key)
+            } else {
+                scheduleRepeat(key.spec)
+            }
         }
         invalidate()
     }
@@ -380,6 +479,7 @@ class FlickKeyboardView @JvmOverloads constructor(
             touch.direction = direction
             // Once the finger leaves the centre the key is no longer a hold-to-repeat candidate.
             cancelRepeat()
+            cancelGauge()
             invalidate()
         }
     }
@@ -387,6 +487,7 @@ class FlickKeyboardView @JvmOverloads constructor(
     private fun onPointerUp(pointerId: Int) {
         val touch = activeTouches.remove(pointerId) ?: return
         cancelRepeat()
+        cancelGauge()
         commit(touch)
         invalidate()
     }
@@ -486,11 +587,21 @@ class FlickKeyboardView @JvmOverloads constructor(
 
     override fun onDetachedFromWindow() {
         cancelRepeat()
+        cancelGauge()
         super.onDetachedFromWindow()
     }
 
     companion object {
-        private const val DEFAULT_FLICK_THRESHOLD_DP = 24f
+        const val DEFAULT_FLICK_THRESHOLD_DP = 24f
+
+        /** ⌫ を押してからゲージがたまり始めるまで（普通のタップと区別するため）。 */
+        private const val GAUGE_DELAY_MS = 300L
+
+        /** ゲージが空から満タンになるまでの時間。 */
+        private const val GAUGE_FILL_MS = 1000L
+
+        /** ゲージの色（半透明の赤）。 */
+        private val GAUGE_COLOR = android.graphics.Color.argb(150, 0xE5, 0x39, 0x35)
 
         /** Filled arrow while shift is armed for one letter, underlined arrow while it is locked. */
         private const val SHIFT_ONCE_LABEL = "⬆"

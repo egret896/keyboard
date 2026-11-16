@@ -234,6 +234,9 @@ class ZinnaImeService : InputMethodService() {
             guideOverflowTop = stripHeight.toFloat()
             guideStyle = guideStyleFor(loaded)
             listener = FlickKeyboardView.OnKeyOutputListener(::onKeyOutput)
+            flickThresholdDp = settings.flickThresholdDp
+            holdToClear = settings.holdToClear
+            clearAllListener = ::clearAll
         }
 
         root.addView(
@@ -254,7 +257,7 @@ class ZinnaImeService : InputMethodService() {
         stripContent = StripContent.IDLE_ACTIONS
         keyboardView = keyboard
         builtFromRevision = settings.revision
-        loaded?.let { session.applyInputStyle(it.inputStyle) }
+        loaded?.let { session.applyInputStyle(effectiveStyle(it.inputStyle)) }
         return root
     }
 
@@ -361,12 +364,19 @@ class ZinnaImeService : InputMethodService() {
     }
 
     private fun onKeyOutput(output: KeyOutput, key: KeySpec, direction: FlickDirection) {
+        toggleTimeout.cancel()
+        if (settings.autoBracket && insertBracketPair(output)) {
+            lastTableKey = null
+            return
+        }
         when (val action = output.action) {
             is KeyAction.Input -> {
                 refreshClientContext()
-                endTogglingIfRepeat(action.text)
+                val toggling = isToggleTap(direction)
+                if (!toggling) endTogglingIfRepeat(action.text)
                 render(session.sendText(action.text, output.label))
                 lastTableKey = action.text
+                if (toggling) toggleTimeout.schedule()
             }
 
             // The dakuten/small-kana cycle is a table entry, not a session command: mozc's flick
@@ -412,6 +422,76 @@ class ZinnaImeService : InputMethodService() {
         }
         // Anything that is not a character ends the run, so the key after it starts a new one.
         if (output.action !is KeyAction.Input) lastTableKey = null
+    }
+
+    /**
+     * 連打入力（ケータイ入力）がONで、かなの画面を真ん中タップしたとき true。
+     * このときは同じキーを続けて押すと あ→い→う… と変わってほしいので、mozc の連打を止めない。
+     */
+    private fun isToggleTap(direction: FlickDirection): Boolean =
+        settings.toggleInput && direction == FlickDirection.CENTER &&
+            layout?.inputStyle == InputStyle.FLICK_HIRAGANA
+
+    /** 連打入力がONなら、かな画面だけ mozc の連打用の表に切り替える。 */
+    private fun effectiveStyle(style: InputStyle): InputStyle =
+        if (settings.toggleInput && style == InputStyle.FLICK_HIRAGANA) InputStyle.TOGGLE_FLICK_HIRAGANA
+        else style
+
+    /**
+     * 連打入力で、しばらく手を止めたら文字を確定させるタイマー。
+     * これがあるので「ああ」は、あ→少し待つ→あ で打てる（ガラケーと同じ）。
+     */
+    private val toggleTimeout = object {
+        private val handler = android.os.Handler(android.os.Looper.getMainLooper())
+        private val task = Runnable {
+            if (isComposing) render(session.stopKeyToggling())
+            lastTableKey = null
+        }
+        fun schedule() { handler.removeCallbacks(task); handler.postDelayed(task, TOGGLE_TIMEOUT_MS) }
+        fun cancel() = handler.removeCallbacks(task)
+    }
+
+    /**
+     * 開き括弧なら閉じ括弧もいっしょに入れて、カーソルを間に置く。入れたら true。
+     * かな画面の「(」は全角の「（）」にする（mozc に渡すと全角になるのと同じ）。
+     */
+    private fun insertBracketPair(output: KeyOutput): Boolean {
+        val action = output.action
+        if (action !is KeyAction.Input && action !is KeyAction.InsertSymbol) return false
+        var open = output.label
+        val japanese = layout?.inputStyle == InputStyle.FLICK_HIRAGANA
+        if (japanese) open = FULL_WIDTH_OF[open] ?: open
+        val close = BRACKET_PAIRS[open] ?: return false
+        val ic = currentInputConnection ?: return false
+        if (isComposing) render(session.submit())
+        ic.beginBatchEdit()
+        ic.commitText(open + close, 1)
+        val extracted = ic.getExtractedText(android.view.inputmethod.ExtractedTextRequest(), 0)
+        if (extracted != null) {
+            val pos = extracted.startOffset + extracted.selectionStart - close.length
+            if (pos >= 0) ic.setSelection(pos, pos)
+        }
+        ic.endBatchEdit()
+        return true
+    }
+
+    /** ⌫ 長押しのゲージが満タンになったとき：入力欄の文字を全部消す。 */
+    private fun clearAll() {
+        toggleTimeout.cancel()
+        if (isComposing) {
+            render(session.revert())
+        }
+        lastTableKey = null
+        val ic = currentInputConnection ?: return
+        ic.beginBatchEdit()
+        ic.finishComposingText()
+        val before = ic.getTextBeforeCursor(CLEAR_ALL_MAX_CHARS, 0)?.length ?: 0
+        val after = ic.getTextAfterCursor(CLEAR_ALL_MAX_CHARS, 0)?.length ?: 0
+        val selected = ic.getSelectedText(0)?.length ?: 0
+        if (selected > 0) ic.commitText("", 1)
+        ic.deleteSurroundingText(before, after)
+        ic.endBatchEdit()
+        clientContextValid = false
     }
 
     /**
@@ -607,7 +687,7 @@ class ZinnaImeService : InputMethodService() {
         // Set alongside the layout, not once at view creation: the guide depends on which plane is
         // showing, and switching planes never rebuilds the view.
         keyboardView?.guideStyle = guideStyleFor(next)
-        session.applyInputStyle(next.inputStyle)
+        session.applyInputStyle(effectiveStyle(next.inputStyle))
     }
 
     /**
@@ -915,6 +995,20 @@ class ZinnaImeService : InputMethodService() {
 
     companion object {
         private const val TAG = "ZinnaImeService"
+
+        /** 連打入力で、この時間（ミリ秒）手を止めたら文字を確定する。 */
+        private const val TOGGLE_TIMEOUT_MS = 900L
+
+        /** 全削除で一度に見る文字数の上限。 */
+        private const val CLEAR_ALL_MAX_CHARS = 100_000
+
+        private val BRACKET_PAIRS = mapOf(
+            "(" to ")", "（" to "）", "「" to "」", "『" to "』", "【" to "】",
+            "〈" to "〉", "《" to "》", "〔" to "〕", "［" to "］", "[" to "]",
+            "{" to "}", "｛" to "｝", "“" to "”", "‘" to "’",
+        )
+
+        private val FULL_WIDTH_OF = mapOf("(" to "（", "[" to "［", "{" to "｛")
 
         /** '*' in mozc's flick/12-key tables. See data/preedit/flick-hiragana.tsv upstream. */
         private const val CYCLE_MODIFIER_KEY = "*"

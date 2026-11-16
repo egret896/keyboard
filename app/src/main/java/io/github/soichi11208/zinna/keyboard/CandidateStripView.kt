@@ -108,6 +108,60 @@ class CandidateStripView(context: Context) : FrameLayout(context) {
     /** Whichever container is on screen; everything else here works through this. */
     private val container: ViewGroup get() = if (expanded) grid else row
 
+    // ------------------------------------------------------------ 下に引っぱって一覧を開く
+    //
+    //  候補の列を指で下へ引っぱる → 候補の一覧（全部）が開く
+    //  一覧のいちばん上で上へはらう → 元の1列に戻る
+
+    private var pullStartX = 0f
+    private var pullStartY = 0f
+    private var pulling = false
+    private val pullSlop = 24f * resources.displayMetrics.density
+
+    override fun onInterceptTouchEvent(ev: android.view.MotionEvent): Boolean {
+        when (ev.actionMasked) {
+            android.view.MotionEvent.ACTION_DOWN -> {
+                pullStartX = ev.x
+                pullStartY = ev.y
+                pulling = false
+            }
+            android.view.MotionEvent.ACTION_MOVE -> {
+                val dx = ev.x - pullStartX
+                val dy = ev.y - pullStartY
+                val vertical = kotlin.math.abs(dy) > pullSlop && kotlin.math.abs(dy) > kotlin.math.abs(dx) * 1.5f
+                if (vertical && !expanded && dy > 0 && hasCandidates()) {
+                    pulling = true
+                    return true
+                }
+                if (vertical && expanded && dy < 0 && !wrapped.canScrollVertically(-1)) {
+                    pulling = true
+                    return true
+                }
+            }
+        }
+        return false
+    }
+
+    @android.annotation.SuppressLint("ClickableViewAccessibility")
+    override fun onTouchEvent(event: android.view.MotionEvent): Boolean {
+        if (!pulling) return super.onTouchEvent(event)
+        if (event.actionMasked == android.view.MotionEvent.ACTION_UP ||
+            event.actionMasked == android.view.MotionEvent.ACTION_CANCEL
+        ) {
+            pulling = false
+        } else if (event.actionMasked == android.view.MotionEvent.ACTION_MOVE) {
+            // 引っぱった瞬間に切り替える（指を離すまで待たない）。
+            if (!expanded && event.y - pullStartY > pullSlop) expanded = true
+            else if (expanded && pullStartY - event.y > pullSlop) expanded = false
+        }
+        return true
+    }
+
+    /** 候補（選べるもの）が出ているか。アクションボタンだけのときは引っぱっても開かない。 */
+    private fun hasCandidates(): Boolean = showingCandidates
+
+    private var showingCandidates = false
+
     init {
         // Transparent so the panel behind — colour or the user's background image — shows through.
         addView(oneLine, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
@@ -126,6 +180,7 @@ class CandidateStripView(context: Context) : FrameLayout(context) {
      * invalidate unconditionally, so assigning the same value still costs a layout pass.
      */
     fun setCandidates(candidates: List<MozcSession.Candidate>, focusedIndex: Int) {
+        showingCandidates = candidates.isNotEmpty()
         detachTrailing()
         while (container.childCount > candidates.size) {
             container.removeViewAt(container.childCount - 1)
@@ -167,6 +222,7 @@ class CandidateStripView(context: Context) : FrameLayout(context) {
      * differs, so the click path can tell an action from a candidate.
      */
     fun setActions(actions: List<Action>) {
+        showingCandidates = false
         detachTrailing()
         while (container.childCount > actions.size) {
             container.removeViewAt(container.childCount - 1)

@@ -117,8 +117,10 @@ def qwerty_ascii():
             row([letter(c) for c in HOME], pad_start=0.5),
             row([SHIFT] + [letter(c) for c in BOTTOM] + [BACKSPACE]),
             space_row(
-                leading=[switch("?123", "qwerty_symbol", 1.4),
-                         switch("かな", "qwerty_kana", 1.2),
+                # 「かな」を左端に置く。かな画面の「あA1」と同じ場所なので、
+                # 同じ所をもう一度押せば、かなに戻れる。
+                leading=[switch("かな", "qwerty_kana", 1.4),
+                         switch("?123", "qwerty_symbol", 1.2),
                          symbol(",")],
                 trailing=[symbol("."), ENTER],
             ),

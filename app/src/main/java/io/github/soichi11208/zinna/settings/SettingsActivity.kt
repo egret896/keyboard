@@ -140,6 +140,10 @@ private fun MyKeyboardCard() {
     var privateMode by remember { mutableStateOf(settings.privateMode) }
     var split by remember { mutableStateOf(settings.splitWhenWide) }
     var phrases by remember { mutableStateOf(settings.phrasesText) }
+    var threshold by remember { mutableStateOf(settings.flickThresholdDp) }
+    var toggleInput by remember { mutableStateOf(settings.toggleInput) }
+    var holdToClear by remember { mutableStateOf(settings.holdToClear) }
+    var autoBracket by remember { mutableStateOf(settings.autoBracket) }
 
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -177,6 +181,49 @@ private fun MyKeyboardCard() {
 
             HorizontalDivider()
 
+            Text("フリック感度", style = MaterialTheme.typography.bodyLarge)
+            Text(
+                "左ほど少し指をずらしただけでフリックになります（敏感）。右ほど大きく動かさないとフリックになりません（鈍感）",
+                style = MaterialTheme.typography.bodySmall,
+            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("敏感", style = MaterialTheme.typography.bodySmall)
+                Slider(
+                    value = threshold,
+                    onValueChange = { threshold = it },
+                    onValueChangeFinished = { settings.flickThresholdDp = threshold },
+                    valueRange = ImeSettings.MIN_FLICK_THRESHOLD_DP..ImeSettings.MAX_FLICK_THRESHOLD_DP,
+                    modifier = Modifier.weight(1f).padding(horizontal = 8.dp),
+                )
+                Text("鈍感", style = MaterialTheme.typography.bodySmall)
+            }
+
+            HorizontalDivider()
+
+            SettingSwitch(
+                title = "連打入力（ケータイ入力）",
+                body = "ONにすると「あ」を続けて押すと あ→い→う… と変わります。同じ文字を続けて打つときは少し待つか ▶ を押します。フリックもそのまま使えます",
+                checked = toggleInput,
+            ) { toggleInput = it; settings.toggleInput = it }
+
+            HorizontalDivider()
+
+            SettingSwitch(
+                title = "⌫長押しで全削除",
+                body = "⌫を押し続けると背景に赤いゲージがたまり、満タンで入力欄の文字を全部消します。OFFだと長押しで1文字ずつ連続で消します",
+                checked = holdToClear,
+            ) { holdToClear = it; settings.holdToClear = it }
+
+            HorizontalDivider()
+
+            SettingSwitch(
+                title = "括弧の中にカーソルを移動",
+                body = "「（」などを入れると閉じ括弧も一緒に入り、カーソルが括弧の中に移ります",
+                checked = autoBracket,
+            ) { autoBracket = it; settings.autoBracket = it }
+
+            HorizontalDivider()
+
             Text("定型文", style = MaterialTheme.typography.bodyLarge)
             Text(
                 "1行に1つ書きます。キーボードの「☺記」→「定型文」から入力できます",
@@ -191,6 +238,23 @@ private fun MyKeyboardCard() {
                 modifier = Modifier.fillMaxWidth().heightIn(min = 140.dp),
             )
         }
+    }
+}
+
+/** タイトル・説明・スイッチの1行。 */
+@Composable
+private fun SettingSwitch(
+    title: String,
+    body: String,
+    checked: Boolean,
+    onChange: (Boolean) -> Unit,
+) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.bodyLarge)
+            Text(body, style = MaterialTheme.typography.bodySmall)
+        }
+        Switch(checked = checked, onCheckedChange = onChange)
     }
 }
 

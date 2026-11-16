@@ -67,6 +67,35 @@ class ImeSettings(context: Context) {
             bumpRevision()
         }
 
+    /** フリックと判定するまでに指を動かす距離（dp）。小さいほど敏感。 */
+    var flickThresholdDp: Float
+        get() = prefs.getFloat(KEY_FLICK_THRESHOLD, DEFAULT_FLICK_THRESHOLD_DP)
+        set(value) {
+            prefs.edit().putFloat(KEY_FLICK_THRESHOLD, value).apply()
+            bumpRevision()
+        }
+
+    /** 連打入力（ケータイ入力）。ONだと「あ」を続けて押すと あ→い→う… と変わる。 */
+    var toggleInput: Boolean
+        get() = prefs.getBoolean(KEY_TOGGLE_INPUT, false)
+        set(value) {
+            prefs.edit().putBoolean(KEY_TOGGLE_INPUT, value).apply()
+            bumpRevision()
+        }
+
+    /** ⌫ 長押しでゲージがたまり、満タンで全削除。OFFなら長押しで連続削除。 */
+    var holdToClear: Boolean
+        get() = prefs.getBoolean(KEY_HOLD_TO_CLEAR, true)
+        set(value) {
+            prefs.edit().putBoolean(KEY_HOLD_TO_CLEAR, value).apply()
+            bumpRevision()
+        }
+
+    /** 括弧を入力したら閉じ括弧も入れて、カーソルを括弧の中に置く。 */
+    var autoBracket: Boolean
+        get() = prefs.getBoolean(KEY_AUTO_BRACKET, true)
+        set(value) = prefs.edit().putBoolean(KEY_AUTO_BRACKET, value).apply()
+
     /** How strongly the background image shows through, 0f–1f. */
     var backgroundOpacity: Float
         get() = prefs.getFloat(KEY_BACKGROUND_OPACITY, DEFAULT_BACKGROUND_OPACITY)
@@ -177,6 +206,13 @@ class ImeSettings(context: Context) {
         private const val KEY_PRIVATE_MODE = "private_mode"
         private const val KEY_PHRASES = "phrases"
         private const val KEY_SPLIT_WIDE = "split_when_wide"
+        private const val KEY_FLICK_THRESHOLD = "flick_threshold_dp"
+        private const val KEY_TOGGLE_INPUT = "toggle_input"
+        private const val KEY_HOLD_TO_CLEAR = "hold_to_clear"
+        private const val KEY_AUTO_BRACKET = "auto_bracket"
+        const val DEFAULT_FLICK_THRESHOLD_DP = 24f
+        const val MIN_FLICK_THRESHOLD_DP = 10f
+        const val MAX_FLICK_THRESHOLD_DP = 48f
         private const val DEFAULT_PHRASES = "お疲れさまです。\nよろしくお願いします。\nありがとうございます！\n了解です！\n今から帰ります"
         private const val KEY_ZENZAI_PLUS = "zenzai_plus_enabled"
         private const val KEY_ZENZAI_MOZC = "zenzai_mozc_enabled"
