@@ -24,20 +24,25 @@ class ImeSettings(context: Context) {
 
     private val backgroundDir = File(context.applicationContext.filesDir, BACKGROUND_DIR)
 
+    /** AIモデルがAPKに入っているか。入っていれば、AI変換を最初からONにする。 */
+    private val zenzaiBundled: Boolean =
+        runCatching { context.applicationContext.assets.open("zenzai/model.json").use { } }.isSuccess
+
     /** Forces a true-black panel. On OLED those pixels are switched off entirely. */
     var pureBlack: Boolean
         get() = prefs.getBoolean(KEY_PURE_BLACK, false)
         set(value) = prefs.edit().putBoolean(KEY_PURE_BLACK, value).apply()
 
     var zenzaiPlusEnabled: Boolean
-        get() = prefs.getBoolean(KEY_ZENZAI_PLUS, false)
+        get() = prefs.getBoolean(KEY_ZENZAI_PLUS, zenzaiBundled)
         set(value) {
             prefs.edit().putBoolean(KEY_ZENZAI_PLUS, value).apply()
             bumpRevision()
         }
 
     var zenzaiMozcEnabled: Boolean
-        get() = prefs.getBoolean(KEY_ZENZAI_MOZC, false)
+        // AIの候補に加えて、ふつうの変換（Mozc）の候補や予測も出す。
+        get() = prefs.getBoolean(KEY_ZENZAI_MOZC, true)
         set(value) {
             prefs.edit().putBoolean(KEY_ZENZAI_MOZC, value).apply()
             bumpRevision()

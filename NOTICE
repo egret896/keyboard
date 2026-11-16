@@ -80,3 +80,7 @@ Bundled emoji list:
   https://github.com/muan/unicode-emoji-json
   Copyright (c) 2019 Mu-An Chiou. Licensed under the MIT License.
   See app/src/main/assets/panels/emoji-data-LICENSE.txt.
+
+AI変換モデル: zenz-v2.5-small（Miwa-Keita, https://huggingface.co/Miwa-Keita/zenz-v2.5-small）
+  CC BY-SA 4.0。改変せずに APK に同梱（組み立て時に取得）。
+推論ランタイム: llama.cpp（ggml-org, MIT License）

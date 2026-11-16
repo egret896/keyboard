@@ -126,7 +126,7 @@ class UserDictionary(context: Context) {
     fun sync() {
         val prefs = appContext.getSharedPreferences("ime_settings", Context.MODE_PRIVATE)
         if (prefs.getBoolean("zenzai_plus_enabled", false) &&
-            !prefs.getBoolean("zenzai_mozc_enabled", false)) return
+            !prefs.getBoolean("zenzai_mozc_enabled", true)) return
         sync(MozcEngine.get(appContext) ?: return)
     }
 

@@ -309,7 +309,7 @@ private fun ZenzaiCard() {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text("zenzai-plus（実験的）", modifier = Modifier.weight(1f))
+                Text("AI変換（Zenzai）", modifier = Modifier.weight(1f))
                 Switch(
                     checked = enabled,
                     enabled = bundled || enabled,
@@ -317,13 +317,13 @@ private fun ZenzaiCard() {
                 )
             }
             Text(
-                if (bundled) "zenzai-plusの候補を常に先頭に表示します。確定した入力と登録した辞書の単語をTTTで学習します。初回は読み込みに時間がかかります。"
+                if (bundled) "スマホの中のAIが文脈を読んで変換し、その候補を先頭に出します。通信はしません。初回だけ読み込みに数秒かかります。"
                 else "このビルドにはzenzai-plusモデルが含まれていません。",
                 style = MaterialTheme.typography.bodySmall,
             )
             if (bundled) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text("Mozc候補を併用", modifier = Modifier.weight(1f))
+                    Text("ふつうの変換候補も出す", modifier = Modifier.weight(1f))
                     Switch(
                         checked = mozcEnabled,
                         enabled = enabled,

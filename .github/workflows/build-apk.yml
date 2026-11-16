@@ -101,10 +101,27 @@ jobs:
           python3 scripts/gen_flick_layout.py
           python3 scripts/gen_qwerty_layout.py
 
+      - name: AI変換エンジン（Zenzai）を準備
+        id: zenzai
+        continue-on-error: true
+        run: |
+          ./scripts/fetch_zenzai_public.sh
+          cmake -S native/zenzai -B build/zenzai-android -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_TOOLCHAIN_FILE="$ANDROID_NDK_HOME/build/cmake/android.toolchain.cmake" \
+            -DANDROID_ABI=arm64-v8a -DANDROID_PLATFORM=android-24 -DANDROID_STL=c++_static \
+            -DZINNA_LLAMA_SOURCE="$PWD/third_party/zenzai-llama" -DZINNA_TTT_STUB=ON
+          cmake --build build/zenzai-android --parallel 4
+          mkdir -p app/src/zenzai/jniLibs/arm64-v8a
+          cp build/zenzai-android/libzinna_zenzai.so app/src/zenzai/jniLibs/arm64-v8a/
+          echo "ok=true" >> "$GITHUB_OUTPUT"
+
       - name: APK をビルド
         run: |
           echo "sdk.dir=$ANDROID_HOME" > local.properties
-          ./gradlew :app:assembleDebug --no-daemon
+          # Zenzai の準備に成功したときだけ同梱する（失敗してもふつうのAPKは作る）
+          if [ "${{ steps.zenzai.outputs.ok }}" = "true" ]; then ZENZAI="-Pzenzai=true"; else ZENZAI=""; echo "::warning::Zenzai なしで組み立てます"; fi
+          ./gradlew :app:assembleDebug --no-daemon $ZENZAI
           mkdir -p dist
           ls app/build/outputs/apk/debug/
           # Fold7 は arm64。ABIごとに分かれた APK から arm64 版を選ぶ

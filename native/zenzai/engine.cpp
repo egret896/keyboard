@@ -1,5 +1,8 @@
 #include "engine.h"
 #include "llama.h"
+#ifdef ZINNA_TTT_STUB
+#include "ttt_stub.h"
+#endif
 #include <algorithm>
 #include <chrono>
 #include <mutex>
@@ -8,7 +11,9 @@
 #include <vector>
 #include <unistd.h>
 
+#ifndef ZINNA_TTT_STUB
 extern "C" int32_t llama_ttt_save_fd(llama_context *, int, uint64_t);
+#endif
 
 namespace zinna {
 namespace {

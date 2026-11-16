@@ -155,7 +155,7 @@ class ZinnaImeService : InputMethodService() {
         settings = ImeSettings(this)
         session = ConversionSession(this)
         zenzai = ZenzaiEngine(this) {
-            Toast.makeText(this, "zenzai-plusの処理に失敗しました。かな入力は引き続き利用できます", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, "AI変換でエラーが起きました。ふつうの変換はそのまま使えます", Toast.LENGTH_LONG).show()
         }
         getSharedPreferences(ImeSettings.NAME, Context.MODE_PRIVATE)
             .registerOnSharedPreferenceChangeListener(conversionSettingsListener)
