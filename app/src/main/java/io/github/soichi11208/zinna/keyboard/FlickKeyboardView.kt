@@ -440,7 +440,7 @@ class FlickKeyboardView @JvmOverloads constructor(
 
     /** フローズンのときは、使う人の調整にかかわらず「四角・ゆがみなし・強いくもり・影なし」。 */
     private fun effectiveLensParams(): Lens.Params =
-        if (frozen) Lens.Params(refract = 0f, frost = 0.9f, light = 0.7f, shadow = 0f, square = true) else lensParams
+        if (frozen) Lens.Params(refract = 0f, frost = 1f, light = 1f, shadow = 0f, square = true) else lensParams
 
     /** ミニマリスト（罫線だけ）で描くか。リキッドグラスより優先しない（glass が true なら glass）。 */
     var minimal: Boolean = false

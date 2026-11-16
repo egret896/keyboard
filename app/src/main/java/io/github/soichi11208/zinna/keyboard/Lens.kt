@@ -210,6 +210,26 @@ internal object Lens {
             var cg = green[i] * (1f - scatter) + scatterG * scatter
             var cb = blue[i] * (1f - scatter) + scatterB * scatter
             cr += (tintR - cr) * tint; cg += (tintG - cg) * tint; cb += (tintB - cb) * tint
+            if (params.square) {
+                // ---- フローズン：ぼやけた光は使わず、くっきりした1ピクセルの溝と、すりガラスのざらつき
+                val tx = x - m; val ty = y - m
+                // 上がほんの少し明るい（上から光が当たる板ガラス）
+                val v = (ty.toFloat() / h).coerceIn(0f, 1f)
+                val sheen = 0.10f * (1f - v) * (1f - v) + 0.05f * press
+                cr += (255f - cr) * sheen; cg += (255f - cg) * sheen; cb += (255f - cb) * sheen
+                // すりガラスのざらつき（細かい点の明るさのばらつき。キーごとに模様が変わらないよう位置だけで決める）
+                var hsh = (x + left.toInt()) * 73856093 xor (y + top.toInt()) * 19349663
+                hsh = hsh xor (hsh ushr 13); hsh *= 0x5bd1e995; hsh = hsh xor (hsh ushr 15)
+                val grain = ((hsh and 0xff) - 128) / 128f * 5f
+                cr += grain; cg += grain; cb += grain
+                // 溝：左と上の1ピクセルは明るく、右と下の1ピクセルは暗く（となりのタイルと合わせて「溝」に見える）
+                val lightEdge = tx < 1 || ty < 1
+                val darkEdge = tx >= w - 1 || ty >= h - 1
+                if (darkEdge) { cr *= 0.78f; cg *= 0.78f; cb *= 0.78f }
+                else if (lightEdge) { cr += (255f - cr) * 0.40f * light; cg += (255f - cg) * 0.40f * light; cb += (255f - cb) * 0.40f * light }
+                out[i] = (0xff shl 24) or (cr.coerceIn(0f, 255f).toInt() shl 16) or (cg.coerceIn(0f, 255f).toInt() shl 8) or cb.coerceIn(0f, 255f).toInt()
+                continue
+            }
             val nz = flat[i]
             val facing = -(normX[i] * l2x + normY[i] * l2y)        // 光の方を向いた縁で 1、反対で -1
             // 内側の陰（光と反対を向いた縁の内側）
