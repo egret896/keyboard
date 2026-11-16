@@ -164,6 +164,11 @@ sealed interface KeyAction {
     @SerialName("panel")
     data object OpenPanel : KeyAction
 
+    /** 記号パネルを「顔文字」のページで開く。 */
+    @Serializable
+    @SerialName("kaomoji")
+    data object OpenKaomoji : KeyAction
+
     /** Hand control back to the system input method picker. */
     @Serializable
     @SerialName("ime_picker")

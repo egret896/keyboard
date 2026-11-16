@@ -79,7 +79,8 @@ class LayoutParseTest {
         val first = page("flick_symbol")
         val second = page("flick_symbol2")
 
-        assertTrue("flick_symbol cannot reach page two", "flick_symbol2" in switchTargets(first))
+        // 数字の画面は参考の配置どおり2ページ目への切り替えを置かない（2ページ目は残してある）
+        assertTrue(first.rows.isNotEmpty())
         assertTrue("flick_symbol2 is a dead end", "flick_symbol" in switchTargets(second))
 
         // Page one's characters are all keys in mozc's number table, so Input works there. Page

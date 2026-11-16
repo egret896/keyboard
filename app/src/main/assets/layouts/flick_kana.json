@@ -295,10 +295,9 @@
         {
           "weight": 1.0,
           "center": {
-            "label": "数字",
+            "label": "(^^)",
             "action": {
-              "type": "layout",
-              "layoutId": "flick_symbol"
+              "type": "kaomoji"
             }
           },
           "style": "MODIFIER"

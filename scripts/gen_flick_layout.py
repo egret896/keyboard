@@ -58,7 +58,7 @@ def load_table(path: pathlib.Path) -> dict[str, str]:
 
 # (center, left, up, right, down) as mozc flick-hiragana table keys.
 # い/う/え/お sit left/up/right/down of あ, which is the standard Japanese flick arrangement.
-LITERAL_KANA = {"「", "」"}
+LITERAL_KANA = {"「", "」", "~"}
 
 KANA_KEYS = {
     "a":    ("1", "_", ";", ":", "@"),
@@ -106,9 +106,10 @@ SYMBOL_KEYS = {
     "7":     ("7", "「", "」", ":", None),
     "8":     ("8", "〒", "々", "〆", None),
     "9":     ("9", "^", "|", "\\", None),
-    "paren": ("(", ")", "[", "]", None),
+    # 4段目：「/」キー（左 ~・上 ・・右 *）と「+」キー（左 -・上 =・右 #）
+    "slash": ("/", "~", "・", "*", None),
     "0":     ("0", "〜", "…", "@", None),
-    "punc":  (".", ",", "-", "/", None),
+    "plus":  ("+", "-", "=", "#", None),
 }
 
 # '*' cycles, '`' forces small, '[' forces dakuten, ']' forces handakuten.
@@ -122,9 +123,11 @@ def input_key(table: dict[str, str] | None, key: str | None) -> dict | None:
         return None
     if table is None:
         label = key
-    elif key in LITERAL_KANA:
+    elif key in LITERAL_KANA and not table.get(key):
         # mozc の表にない文字は、そのまま入力中の文字に入る（「や」の左右＝「」）
-        return {"label": key, "action": {"type": "input", "text": key}}
+        # 「」は入力中の文字に入れる。~ は数字の表では別の意味になりうるので、そのまま入れる
+        kind = "symbol" if key.isascii() else "input"
+        return {"label": key, "action": {"type": kind, "text": key}}
     else:
         label = table.get(key)
         if not label:
@@ -166,6 +169,8 @@ def SPACE():
 ENTER = lambda: action_key("↵", {"type": "enter"})
 # 記号・絵文字・顔文字パネルを開くキー（左上）
 PANEL = lambda: action_key("☺記", {"type": "panel"}, style="MODIFIER")
+# 顔文字のページを直接開くキー（3段目の左）
+KAOMOJI = lambda: action_key("(^^)", {"type": "kaomoji"}, style="MODIFIER")
 # あ → A → 1 → あ … と順番に切り替えるキー（4段目の左）
 CYCLE_LABEL = "あA1"
 
@@ -184,10 +189,10 @@ def build(layout_id: str, label: str, input_style: str, keys: list[dict],
     k = keys
     rows = [
         # 左上は「☺記」（前は「↶ 戻す」だったが、使わないので外した）。
-        # 3段目の左（前の☺記の場所）は、記号・数字の画面へ直接行くキー。
+        # 3段目の左は顔文字のページを直接開くキー。
         {"keys": [PANEL(), k[0], k[1], k[2], BACKSPACE()]},
         {"keys": [CURSOR_LEFT(), k[3], k[4], k[5], CURSOR_RIGHT()]},
-        {"keys": [symbol_switch, k[6], k[7], k[8], SPACE()]},
+        {"keys": [KAOMOJI(), k[6], k[7], k[8], SPACE()]},
         {"keys": [cycle_switch, k[9], k[10], k[11], ENTER()]},
     ]
     return {"id": layout_id, "label": label, "inputStyle": input_style, "rows": rows}
@@ -233,17 +238,13 @@ def build_ascii(table: dict[str, str]) -> dict:
 def build_symbol(table: dict[str, str]) -> dict:
     keys = [char_key(table, SYMBOL_KEYS[n])
             for n in ("1", "2", "3", "4", "5", "6", "7", "8", "9")]
-    keys += [char_key(table, SYMBOL_KEYS["paren"], label="()[]"),
+    keys += [char_key(table, SYMBOL_KEYS["slash"], label="~/*"),
              char_key(table, SYMBOL_KEYS["0"]),
-             char_key(table, SYMBOL_KEYS["punc"], label=".,-/")]
+             char_key(table, SYMBOL_KEYS["plus"], label="-+#")]
     # Gboard puts a second symbol page behind !?# here. We have no such page yet, so the slot goes
     # back to kana rather than advertising something that does not exist.
     layout = build(SYMBOL_ID, "記号・数字", "TOGGLE_FLICK_NUMBER", keys,
                    switch(KANA_LABEL, KANA_ID), switch(CYCLE_LABEL, KANA_ID))
-    # 1段目の左は、記号の2ページ目（flick_symbol2）への切り替え
-    layout["rows"][0]["keys"][0] = switch("!?#", "flick_symbol2")
-    # 3段目の左は「☺記」のまま（数字の画面では左上が !?# なので）
-    layout["rows"][2]["keys"][0] = PANEL()
     return layout
 
 

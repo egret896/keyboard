@@ -91,21 +91,30 @@ HOME = "asdfghjkl"
 BOTTOM = "zxcvbnm"
 
 
+LEFT = key("◀", {"type": "cursor", "delta": -1}, 1.0, "MODIFIER", repeatable=True)
+RIGHT = key("▶", {"type": "cursor", "delta": 1}, 1.0, "MODIFIER", repeatable=True)
+PANEL = key("☺記", {"type": "panel"}, 1.5, "MODIFIER")
+
+# 4つの画面とも、いちばん下の段はほぼ同じ形：
+#   [切替] [切替] [,] [  空白  ] [.] [◀] [▶] [↵]
+
+
 def qwerty_kana():
     # No shift here. mozc's romaji table does not compose upper case — "Tokyo" stays "Tokyo"
     # rather than becoming ときょ — so a shift key on this plane would silently stop producing
     # kana. Capitals live on the ascii plane, which is one key away.
+    # 英字の画面と同じ形。' の場所は「ー」、⇧ の場所は「☺記」。
     return layout(
         "qwerty_kana", "かな (QWERTY)", "QWERTY_HIRAGANA",
         [
             row([letter(c) for c in TOP]),
-            row([letter(c) for c in HOME], pad_start=0.5),
-            row([key("↶", {"type": "undo"}, 1.5, "MODIFIER")]
-                + [letter(c) for c in BOTTOM] + [BACKSPACE]),
+            row([letter(c) for c in HOME] + [key("ー", {"type": "input", "text": "-"})]),
+            row([PANEL] + [letter(c) for c in BOTTOM] + [BACKSPACE]),
             space_row(
                 leading=[switch("英数", "qwerty_ascii", 1.4),
+                         switch("?123", "qwerty_symbol", 1.2),
                          key("、", {"type": "input", "text": ","}, 1.0)],
-                trailing=[key("。", {"type": "input", "text": "."}, 1.0), ENTER],
+                trailing=[key("。", {"type": "input", "text": "."}, 1.0), LEFT, RIGHT, ENTER],
                 space_label="空白",
                 space_action={"type": "convert"},
             ),
@@ -118,7 +127,7 @@ def qwerty_ascii():
         "qwerty_ascii", "英数 (QWERTY)", "QWERTY_HALFWIDTH_ASCII",
         [
             row([letter(c) for c in TOP]),
-            row([letter(c) for c in HOME], pad_start=0.5),
+            row([letter(c) for c in HOME] + [symbol("'")]),
             row([SHIFT] + [letter(c) for c in BOTTOM] + [BACKSPACE]),
             space_row(
                 # 左端はかな画面の「あA1」と同じ場所・同じ働き。連打すると
@@ -126,9 +135,16 @@ def qwerty_ascii():
                 leading=[switch("あA1", "flick_symbol", 1.4),
                          switch("?123", "qwerty_symbol", 1.2),
                          symbol(",")],
-                trailing=[symbol("."), ENTER],
+                trailing=[symbol("."), LEFT, RIGHT, ENTER],
             ),
         ],
+    )
+
+
+def symbol_bottom():
+    return space_row(
+        leading=[switch("abc", "qwerty_ascii", 1.6), symbol(",")],
+        trailing=[symbol("."), LEFT, RIGHT, ENTER],
     )
 
 
@@ -137,13 +153,10 @@ def qwerty_symbol():
         "qwerty_symbol", "記号 (QWERTY)", "QWERTY_HALFWIDTH_ASCII",
         [
             row([symbol(c) for c in "1234567890"]),
-            row([symbol(c) for c in "@#$_&-+()/"]),
+            row([symbol(c) for c in "@#&-/$%()"], pad_start=0.5),
             row([switch("=\\<", "qwerty_symbol2", 1.5)]
-                + [symbol(c) for c in "*\"':;!?"] + [BACKSPACE]),
-            space_row(
-                leading=[switch("ABC", "qwerty_ascii", 1.5), symbol(",")],
-                trailing=[symbol("."), ENTER],
-            ),
+                + [symbol(c) for c in "!?'\":;_"] + [BACKSPACE]),
+            symbol_bottom(),
         ],
     )
 
@@ -152,14 +165,11 @@ def qwerty_symbol2():
     return layout(
         "qwerty_symbol2", "記号 2 (QWERTY)", "QWERTY_HALFWIDTH_ASCII",
         [
-            row([symbol(c) for c in "~`|•√π÷×¶Δ"]),
-            row([symbol(c) for c in "£¢€¥^°={}"], pad_start=0.5),
+            row([symbol(c) for c in "`~&|^+-*/="]),
+            row([symbol(c) for c in "\\<>[]{}()"], pad_start=0.5),
             row([switch("?123", "qwerty_symbol", 1.5)]
-                + [symbol(c) for c in "\\©®™%[]"] + [BACKSPACE]),
-            space_row(
-                leading=[switch("ABC", "qwerty_ascii", 1.5), symbol(","), symbol("<")],
-                trailing=[symbol(">"), symbol("."), ENTER],
-            ),
+                + [symbol(c) for c in "!?'\":;_"] + [BACKSPACE]),
+            symbol_bottom(),
         ],
     )
 

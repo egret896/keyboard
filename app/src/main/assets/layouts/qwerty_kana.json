@@ -331,19 +331,27 @@
               "text": "L"
             }
           }
+        },
+        {
+          "weight": 1.0,
+          "center": {
+            "label": "ー",
+            "action": {
+              "type": "input",
+              "text": "-"
+            }
+          }
         }
-      ],
-      "padStart": 0.5,
-      "padEnd": 0.5
+      ]
     },
     {
       "keys": [
         {
           "weight": 1.5,
           "center": {
-            "label": "↶",
+            "label": "☺記",
             "action": {
-              "type": "undo"
+              "type": "panel"
             }
           },
           "style": "MODIFIER"
@@ -494,6 +502,17 @@
           "style": "MODIFIER"
         },
         {
+          "weight": 1.2,
+          "center": {
+            "label": "?123",
+            "action": {
+              "type": "layout",
+              "layoutId": "qwerty_symbol"
+            }
+          },
+          "style": "MODIFIER"
+        },
+        {
           "weight": 1.0,
           "center": {
             "label": "、",
@@ -504,7 +523,7 @@
           }
         },
         {
-          "weight": 4.6,
+          "weight": 1.4000000000000004,
           "center": {
             "label": "空白",
             "action": {
@@ -522,6 +541,30 @@
               "text": "."
             }
           }
+        },
+        {
+          "weight": 1.0,
+          "center": {
+            "label": "◀",
+            "action": {
+              "type": "cursor",
+              "delta": -1
+            }
+          },
+          "repeatable": true,
+          "style": "MODIFIER"
+        },
+        {
+          "weight": 1.0,
+          "center": {
+            "label": "▶",
+            "action": {
+              "type": "cursor",
+              "delta": 1
+            }
+          },
+          "repeatable": true,
+          "style": "MODIFIER"
         },
         {
           "weight": 2.0,

@@ -8,10 +8,9 @@
         {
           "weight": 1.0,
           "center": {
-            "label": "!?#",
+            "label": "☺記",
             "action": {
-              "type": "layout",
-              "layoutId": "flick_symbol2"
+              "type": "panel"
             }
           },
           "style": "MODIFIER"
@@ -260,9 +259,9 @@
         {
           "weight": 1.0,
           "center": {
-            "label": "☺記",
+            "label": "(^^)",
             "action": {
-              "type": "panel"
+              "type": "kaomoji"
             }
           },
           "style": "MODIFIER"
@@ -400,36 +399,36 @@
         {
           "weight": 1.0,
           "center": {
-            "label": "(",
+            "label": "/",
             "action": {
               "type": "input",
-              "text": "("
+              "text": "/"
             }
           },
           "style": "CHARACTER",
           "left": {
-            "label": ")",
+            "label": "~",
             "action": {
-              "type": "input",
-              "text": ")"
+              "type": "symbol",
+              "text": "~"
             }
           },
           "up": {
-            "label": "[",
+            "label": "・",
             "action": {
               "type": "input",
-              "text": "["
+              "text": "・"
             }
           },
           "right": {
-            "label": "]",
+            "label": "*",
             "action": {
               "type": "input",
-              "text": "]"
+              "text": "*"
             }
           },
           "down": null,
-          "label": "()[]"
+          "label": "~/*"
         },
         {
           "weight": 1.0,
@@ -467,36 +466,36 @@
         {
           "weight": 1.0,
           "center": {
-            "label": ".",
+            "label": "+",
             "action": {
               "type": "input",
-              "text": "."
+              "text": "+"
             }
           },
           "style": "CHARACTER",
           "left": {
-            "label": ",",
-            "action": {
-              "type": "input",
-              "text": ","
-            }
-          },
-          "up": {
             "label": "-",
             "action": {
               "type": "input",
               "text": "-"
             }
           },
-          "right": {
-            "label": "/",
+          "up": {
+            "label": "=",
             "action": {
               "type": "input",
-              "text": "/"
+              "text": "="
+            }
+          },
+          "right": {
+            "label": "#",
+            "action": {
+              "type": "input",
+              "text": "#"
             }
           },
           "down": null,
-          "label": ".,-/"
+          "label": "-+#"
         },
         {
           "weight": 1.0,

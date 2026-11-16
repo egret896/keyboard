@@ -248,8 +248,9 @@ class CandidateStripView(context: Context) : FrameLayout(context) {
         // Transparent so the panel behind — colour or the user's background image — shows through.
         addView(oneLine, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
         addView(twoRow, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
-        addView(handle, LayoutParams(handleWidth, LayoutParams.MATCH_PARENT, Gravity.END or Gravity.TOP))
         addView(wrapped, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
+        // ハンドルはいちばん上に置く（一覧の下に隠れて △ が押せなかった）
+        addView(handle, LayoutParams(handleWidth, LayoutParams.MATCH_PARENT, Gravity.END or Gravity.TOP))
     }
 
     /**
