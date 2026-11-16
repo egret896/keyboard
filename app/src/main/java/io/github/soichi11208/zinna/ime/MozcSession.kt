@@ -264,6 +264,40 @@ class MozcSession(context: Context) {
         return tiers
     }
 
+    private enum class Rank { EXACT, TRANSLITERATION, PARTIAL, PREDICTION, OTHER }
+
+    /** 候補ごとの読み（打った読みと違うときだけ mozc が入れてくる）。 */
+    private fun Output.keysById(): Map<Int, String?> {
+        if (!hasAllCandidateWords()) return emptyMap()
+        val map = HashMap<Int, String?>()
+        for (word in allCandidateWords.candidatesList) {
+            map[word.id] = if (word.hasKey()) word.key else null
+        }
+        return map
+    }
+
+    private fun rank(candidate: Candidate, keys: Map<Int, String?>, reading: String): Rank {
+        if (isTransliteration(candidate.text, reading)) return Rank.TRANSLITERATION
+        val key = keys[candidate.id]
+        return when {
+            key == null || key == reading -> Rank.EXACT
+            key.startsWith(reading) -> Rank.PREDICTION
+            reading.startsWith(key) -> Rank.PARTIAL
+            else -> Rank.OTHER
+        }
+    }
+
+    /** 読みをカタカナ・ひらがな・半角にしただけの候補か。 */
+    private fun isTransliteration(text: String, reading: String): Boolean {
+        if (reading.isEmpty()) return false
+        fun norm(t: String) = buildString {
+            for (c in java.text.Normalizer.normalize(t, java.text.Normalizer.Form.NFKC)) {
+                append(if (c in 'ァ'..'ヶ') c - 0x60 else c)
+            }
+        }
+        return norm(text) == norm(reading)
+    }
+
     private fun Output.toState(): State {
         val preeditText = StringBuilder()
         val preeditReading = StringBuilder()
@@ -287,12 +321,21 @@ class MozcSession(context: Context) {
             null
         }
 
-        // mozc が付けた順番をそのまま使う。
-        // 以前はここで「読みが完全一致する候補」を先頭に並べ替えていたが、それだと
-        // 「アトヨソクヘンカンガ」のようなカタカナ・ひらがなの言い換えが先頭に来て、
-        // mozc が1番に選んだ「あと予測変換が」が後ろへ押しやられていた。
-        val candidates = raw
-        val focused = focusedId?.let { id -> raw.indexOfFirst { it.id == id } } ?: -1
+        // 候補の並べ方（上から順に）:
+        //   ① mozc の1番目の候補（いちばん自然な変換）は必ず先頭
+        //   ② 打った読みそのものの変換        例: 「わたしは」→ 私は
+        //   ③ カタカナ・ひらがな・半角の言い換え  例: ワタシハ / ﾜﾀｼﾊ
+        //   ④ 前の方だけの変換                例: 私
+        //   ⑤ 続きを推測した予測              例: 私は今日
+        //   ⑥ 読みが違うもの（補正など）       例: 私へ
+        // 同じグループの中では mozc の順番を崩さない。
+        val reading = preeditReading.toString().ifEmpty { preeditText.toString() }
+        val keys = keysById()
+        val candidates = if (raw.size < 2) raw else {
+            val top = raw.first()
+            listOf(top) + raw.drop(1).sortedBy { rank(it, keys, reading).ordinal }
+        }
+        val focused = focusedId?.let { id -> candidates.indexOfFirst { it.id == id } } ?: -1
 
         return State(
             committedText = if (hasResult()) result.value else "",
