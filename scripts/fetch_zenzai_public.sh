@@ -20,12 +20,40 @@ for pat in 'Q5_K_M' 'Q6_K' 'Q8_0' 'f16' ''; do
   pick="$(echo "${files}" | grep -i '\.gguf$' | grep -i -- "${pat}" | head -1 || true)"
   [[ -n "${pick}" ]] && break
 done
-if [[ -z "${pick}" ]]; then echo "error: gguf が見つからない" >&2; exit 1; fi
-echo "==> 使うモデル: ${pick}"
-
 dest="${ROOT}/app/src/zenzai/assets/zenzai"
 mkdir -p "${dest}"
-curl -fL --retry 5 -o "${dest}/zenzai-plus-ft-f16.gguf" "https://huggingface.co/${REPO}/resolve/main/${pick}"
+if [[ -n "${pick}" ]]; then
+  echo "==> 使うモデル: ${pick}"
+  curl -fL --retry 5 -o "${dest}/zenzai-plus-ft-f16.gguf" "https://huggingface.co/${REPO}/resolve/main/${pick}"
+else
+  # gguf が公開されていないので、公開されている元の重み（safetensors）を
+  # llama.cpp 付属の変換ツールで gguf にする（中身の学習結果はそのまま、形式だけ変える）
+  echo "==> gguf が無いので safetensors から変換します"
+  hf="${ROOT}/third_party/zenzai-hf"
+  rm -rf "${hf}"; mkdir -p "${hf}"
+  for f in ${files}; do
+    case "${f}" in
+      *.safetensors|*.json|*.txt|*.model) curl -fsSL --retry 5 -o "${hf}/${f}" "https://huggingface.co/${REPO}/resolve/main/${f}";;
+    esac
+  done
+  ls -la "${hf}"
+  python3 -m pip install -q --index-url https://download.pytorch.org/whl/cpu torch
+  python3 -m pip install -q numpy sentencepiece safetensors "transformers>=4.45,<5" protobuf
+  python3 -m pip install -q "${ROOT}/third_party/zenzai-llama/gguf-py"
+  conv="${ROOT}/third_party/zenzai-llama/convert_hf_to_gguf.py"
+  # zenz の分かち方（トークナイザ）は変換ツールの一覧に無いので、GPT-2 と同じ扱いにする
+  python3 - "${conv}" <<'PY'
+import sys
+p = sys.argv[1]
+s = open(p, encoding="utf-8").read()
+old = 'raise NotImplementedError("BPE pre-tokenizer was not recognized - update get_vocab_base_pre()")'
+assert old in s, "convert script layout changed"
+s = s.replace(old, 'res = "gpt-2"')
+open(p, "w", encoding="utf-8").write(s)
+PY
+  python3 "${conv}" "${hf}" --outtype q8_0 --outfile "${dest}/zenzai-plus-ft-f16.gguf"
+  pick="model.safetensors（q8_0 に変換）"
+fi
 head -c 4 "${dest}/zenzai-plus-ft-f16.gguf" | grep -q GGUF
 size="$(stat -c %s "${dest}/zenzai-plus-ft-f16.gguf")"
 sha="$(sha256sum "${dest}/zenzai-plus-ft-f16.gguf" | cut -d' ' -f1)"
@@ -43,6 +71,6 @@ cp "${ROOT}/third_party/zenzai-llama/LICENSE" "${dest}/llama-LICENSE.txt"
 cat > "${dest}/MODEL_CARD.md" <<CARD
 # zenz-v2.5-small
 かな漢字変換用の言語モデル。作者: Miwa-Keita（https://huggingface.co/${REPO}）
-ライセンス: CC BY-SA 4.0。このアプリでは改変せずに同梱しています（ファイル: ${pick}）。
+ライセンス: CC BY-SA 4.0。このアプリでは重みを gguf 形式（8bit量子化）に変換して同梱しています（元: ${pick}）。
 CARD
 echo "    ${size} bytes, sha256 ${sha}"
