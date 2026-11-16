@@ -245,6 +245,10 @@ class ZinnaImeService : InputMethodService() {
             gaugeFillMs = settings.clearChargeMs
             oneHand = effectiveOneHand()
             glass = settings.liquidGlass
+            lensParams = io.github.soichi11208.zinna.keyboard.Lens.Params(
+                refract = settings.glassRefract, frost = settings.glassFrost,
+                light = settings.glassLight, shadow = settings.glassShadow,
+            )
             oneHandListener = { action ->
                 setOneHand(if (action == 0) 0 else -settings.oneHandMode)
             }
@@ -1084,7 +1088,16 @@ class ZinnaImeService : InputMethodService() {
                     rebuildKeepingMenu()
                 },
             ),
-            listOf(KeyboardMenuView.Item({ "閉じる" }) { closeKeyboardMenu() }),
+            listOf(
+                KeyboardMenuView.Item({
+                    if (settings.flickGuideStyle == FlickGuideStyle.NONE) "ポップアップ：オフ" else "ポップアップ：オン"
+                }) {
+                    settings.flickGuideStyle =
+                        if (settings.flickGuideStyle == FlickGuideStyle.NONE) FlickGuideStyle.PREVIEW else FlickGuideStyle.NONE
+                    keyboardView?.guideStyle = guideStyleFor(keyboardView?.layout)
+                },
+                KeyboardMenuView.Item({ "閉じる" }) { closeKeyboardMenu() },
+            ),
         ))
         symbolPanel?.visibility = View.GONE
         keyboard.visibility = View.GONE

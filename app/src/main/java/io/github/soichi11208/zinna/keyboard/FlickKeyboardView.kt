@@ -440,6 +440,9 @@ class FlickKeyboardView @JvmOverloads constructor(
     var backdropProvider: (() -> android.graphics.Bitmap?)? = null
     /** 背景が変わった回数（変わったらレンズを作り直す）。 */
     var backdropRevision: () -> Int = { 0 }
+    /** 使う人が設定で変えたガラスの強さ。 */
+    internal var lensParams = Lens.Params()
+        set(value) { if (field != value) { field = value; invalidate() } }
     @Volatile private var lensSignature: String? = null
     /** キーごとの「ふだん」と「押している」のガラス画像。 */
     private var lenses: Map<PlacedKey, Pair<Lens.Result, Lens.Result>> = emptyMap()
@@ -447,7 +450,7 @@ class FlickKeyboardView @JvmOverloads constructor(
     /** キーの並びか背景が変わっていたら、レンズ画像を裏で作り直す。 */
     private fun ensureLenses() {
         if (!glass) return
-        val signature = "${backdropRevision()}:$left:$top:$width:$height:${System.identityHashCode(placedKeys)}"
+        val signature = "${backdropRevision()}:$left:$top:$width:$height:${System.identityHashCode(placedKeys)}:$lensParams"
         if (signature == lensSignature) return
         lensSignature = signature
         val snapshot = backdropProvider?.invoke()
@@ -460,12 +463,13 @@ class FlickKeyboardView @JvmOverloads constructor(
         val keys = placedKeys.map { it to RectF(it.bounds) }
         val density = resources.displayMetrics.density
         val labelLight = darkTheme
+        val params = lensParams
         LENS_WORKER.execute {
             val made = HashMap<PlacedKey, Pair<Lens.Result, Lens.Result>>()
             for ((key, rect) in keys) {
                 if (lensSignature != signature) return@execute
-                val rest = Lens.render(pixels, sw, sh, rect, density, labelLight, 0f) ?: continue
-                val pressed = Lens.render(pixels, sw, sh, rect, density, labelLight, 1f) ?: continue
+                val rest = Lens.render(pixels, sw, sh, rect, density, labelLight, 0f, params) ?: continue
+                val pressed = Lens.render(pixels, sw, sh, rect, density, labelLight, 1f, params) ?: continue
                 made[key] = rest to pressed
             }
             post { if (lensSignature == signature) { lenses = made; invalidate() } }

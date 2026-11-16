@@ -59,11 +59,20 @@ internal object Lens {
 
     class Result(val bitmap: Bitmap, val margin: Int)
 
+    /**
+     * 使う人が設定で変えられる強さ（Tokens にかける倍率）。
+     * @param refract ゆがみ 0〜2（1＝ふつう）
+     * @param frost くもり 0＝透明〜1＝すりガラス
+     * @param light 縁の光 0〜2
+     * @param shadow 影 0〜2
+     */
+    data class Params(val refract: Float = 1f, val frost: Float = 0.2f, val light: Float = 1f, val shadow: Float = 1f)
+
     /** 計算だけの結果（Android の画像にする前）。テストでも使う。 */
     class Pixels(val argb: IntArray, val width: Int, val height: Int, val margin: Int)
 
-    fun render(src: IntArray, sw: Int, sh: Int, b: RectF, density: Float, labelLight: Boolean, press: Float): Result? =
-        renderPixels(src, sw, sh, b.left, b.top, b.width(), b.height(), density, labelLight, press)?.let {
+    fun render(src: IntArray, sw: Int, sh: Int, b: RectF, density: Float, labelLight: Boolean, press: Float, params: Params = Params()): Result? =
+        renderPixels(src, sw, sh, b.left, b.top, b.width(), b.height(), density, labelLight, press, params)?.let {
             Result(Bitmap.createBitmap(it.argb, it.width, it.height, Bitmap.Config.ARGB_8888), it.margin)
         }
 
@@ -75,8 +84,12 @@ internal object Lens {
      */
     fun renderPixels(
         src: IntArray, sw: Int, sh: Int, left: Float, top: Float, width: Float, height: Float,
-        density: Float, labelLight: Boolean, press: Float,
+        density: Float, labelLight: Boolean, press: Float, params: Params = Params(),
     ): Pixels? {
+        val refract = params.refract.coerceIn(0f, 3f)
+        val frost = params.frost.coerceIn(0f, 1f)
+        val light = params.light.coerceIn(0f, 3f)
+        val shadow = params.shadow.coerceIn(0f, 3f)
         val b = Box(left, top, left + width, top + height)
         val w = width.toInt()
         val h = height.toInt()
@@ -134,18 +147,22 @@ internal object Lens {
                 val nz = 1f / sqrt(1f + slope * slope)
                 slopeX[i] = nx * slope * nz; slopeY[i] = ny * slope * nz; flat[i] = nz; edge[i] = s
                 normX[i] = nx; normY[i] = ny; depth[i] = max(inside, 0f)
-                val disp = Tokens.REFRACT * (1f + 0.4f * press) * z * s * s
-                val bx = cx + px * (1f - Tokens.MAGNIFY)
-                val by = cy + py * (1f - Tokens.MAGNIFY)
-                val kr = 1f + Tokens.DISPERSION; val kb = 1f - Tokens.DISPERSION
+                val disp = Tokens.REFRACT * refract * (1f + 0.4f * press) * z * s * s
+                val bx = cx + px * (1f - Tokens.MAGNIFY * refract)
+                val by = cy + py * (1f - Tokens.MAGNIFY * refract)
+                val kr = 1f + Tokens.DISPERSION * refract; val kb = 1f - Tokens.DISPERSION * refract
                 red[i] = sample(src, sw, sh, bx + nx * disp * kr, by + ny * disp * kr, 16)
                 green[i] = sample(src, sw, sh, bx + nx * disp, by + ny * disp, 8)
                 blue[i] = sample(src, sw, sh, bx + nx * disp * kb, by + ny * disp * kb, 0)
             }
         }
         // 2) 背景ぼかし
-        val blurR = max(1, (Tokens.BLUR_DP * density).toInt() / 2)
-        for (ch in arrayOf(red, green, blue)) blur3(ch, cover, bw, bh, blurR)
+        // くもり：0.2 で Tokens.BLUR_DP、1 で約6dp。0 ならぼかさない
+        val blurDp = if (frost <= 0.2f) Tokens.BLUR_DP * frost / 0.2f else Tokens.BLUR_DP + (6f - Tokens.BLUR_DP) * (frost - 0.2f) / 0.8f
+        val blurR = (blurDp * density / 2f).toInt()
+        if (blurR >= 1) for (ch in arrayOf(red, green, blue)) blur3(ch, cover, bw, bh, blurR)
+        // すりガラスほど白っぽく（光が散る）
+        val scatter = Tokens.SCATTER + 0.30f * max(0f, frost - 0.2f)
 
         // 3) 散乱・読みやすさ・光
         val scatterR = avgR * 0.6f + 255f * 0.4f; val scatterG = avgG * 0.6f + 255f * 0.4f; val scatterB = avgB * 0.6f + 255f * 0.4f
@@ -164,7 +181,7 @@ internal object Lens {
         val l2 = sqrt(lx * lx + ly * ly)
         val l2x = lx / l2; val l2y = ly / l2
         val envR = min(255f, avgR * 1.25f + 40f); val envG = min(255f, avgG * 1.25f + 40f); val envB = min(255f, avgB * 1.25f + 40f)
-        val specGain = Tokens.SPEC * (1f + 0.3f * press)
+        val specGain = Tokens.SPEC * light * (1f + 0.3f * press)
 
         val out = IntArray(n)
         // 影（外側）：キーの形をぼかして、下へずらす
@@ -180,22 +197,22 @@ internal object Lens {
             // 影
             val ci = if (y - cdy in 0 until bh) contact[(y - cdy) * bw + x] else 0f
             val ai = if (y - ady in 0 until bh) ambient[(y - ady) * bw + x] else 0f
-            val shadowA = ((Tokens.CONTACT * ci + Tokens.AMBIENT * (1f + 0.5f * press) * ai).coerceIn(0f, 1f) * (1f - c))
+            val shadowA = ((Tokens.CONTACT * ci + Tokens.AMBIENT * shadow * (1f + 0.5f * press) * ai).coerceIn(0f, 1f) * (1f - c))
             if (c <= 0f) {
                 out[i] = ((shadowA * 255).toInt() shl 24) or (shadowR shl 16) or (shadowG shl 8) or shadowB
                 continue
             }
-            var cr = red[i] * (1f - Tokens.SCATTER) + scatterR * Tokens.SCATTER
-            var cg = green[i] * (1f - Tokens.SCATTER) + scatterG * Tokens.SCATTER
-            var cb = blue[i] * (1f - Tokens.SCATTER) + scatterB * Tokens.SCATTER
+            var cr = red[i] * (1f - scatter) + scatterR * scatter
+            var cg = green[i] * (1f - scatter) + scatterG * scatter
+            var cb = blue[i] * (1f - scatter) + scatterB * scatter
             cr += (tintR - cr) * tint; cg += (tintG - cg) * tint; cb += (tintB - cb) * tint
             val nz = flat[i]
             val facing = -(normX[i] * l2x + normY[i] * l2y)        // 光の方を向いた縁で 1、反対で -1
             // 内側の陰（光と反対を向いた縁の内側）
-            val shade = max(0f, -facing) * Tokens.INNER_SHADOW * kotlin.math.exp(-depth[i] / (Tokens.INNER_SHADOW_DP * density))
+            val shade = max(0f, -facing) * Tokens.INNER_SHADOW * shadow * kotlin.math.exp(-depth[i] / (Tokens.INNER_SHADOW_DP * density))
             cr *= 1f - shade; cg *= 1f - shade; cb *= 1f - shade
             // 周りの色の映り込み
-            val fres = Tokens.FRESNEL * (1f - nz).toDouble().pow(2.5).toFloat()
+            val fres = Tokens.FRESNEL * light * (1f - nz).toDouble().pow(2.5).toFloat()
             cr += (envR - cr) * fres; cg += (envG - cg) * fres; cb += (envB - cb) * fres
             // 鏡面の光（左上に強く、右下に弱く）
             // 縁の光：縁にぴったり沿う細い光。光の方を向いた所ほど明るく、向きでなめらかに変わる

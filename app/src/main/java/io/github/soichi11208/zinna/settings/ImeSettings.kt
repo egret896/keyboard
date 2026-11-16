@@ -104,6 +104,26 @@ class ImeSettings(context: Context) {
             bumpRevision()
         }
 
+    /** リキッドグラスのゆがみ具合（0＝ゆがまない、1＝ふつう、2＝強い）。 */
+    var glassRefract: Float
+        get() = prefs.getFloat(KEY_GLASS_REFRACT, 1f)
+        set(value) { prefs.edit().putFloat(KEY_GLASS_REFRACT, value).apply(); bumpRevision() }
+
+    /** リキッドグラスのくもり具合（0＝透明、1＝すりガラス）。 */
+    var glassFrost: Float
+        get() = prefs.getFloat(KEY_GLASS_FROST, 0.2f)
+        set(value) { prefs.edit().putFloat(KEY_GLASS_FROST, value).apply(); bumpRevision() }
+
+    /** リキッドグラスの縁の光の強さ（0〜2、1＝ふつう）。 */
+    var glassLight: Float
+        get() = prefs.getFloat(KEY_GLASS_LIGHT, 1f)
+        set(value) { prefs.edit().putFloat(KEY_GLASS_LIGHT, value).apply(); bumpRevision() }
+
+    /** リキッドグラスの影の濃さ（0〜2、1＝ふつう）。 */
+    var glassShadow: Float
+        get() = prefs.getFloat(KEY_GLASS_SHADOW, 1f)
+        set(value) { prefs.edit().putFloat(KEY_GLASS_SHADOW, value).apply(); bumpRevision() }
+
     /** 片手モード。0 = ふつう、-1 = 左に寄せる、1 = 右に寄せる。 */
     var oneHandMode: Int
         get() = prefs.getInt(KEY_ONE_HAND, 0)
@@ -246,6 +266,10 @@ class ImeSettings(context: Context) {
         private const val KEY_CLEAR_CHARGE = "clear_charge_ms"
         private const val KEY_ONE_HAND = "one_hand_mode"
         private const val KEY_LIQUID_GLASS = "liquid_glass"
+        private const val KEY_GLASS_REFRACT = "glass_refract"
+        private const val KEY_GLASS_FROST = "glass_frost"
+        private const val KEY_GLASS_LIGHT = "glass_light"
+        private const val KEY_GLASS_SHADOW = "glass_shadow"
         private const val KEY_ONE_HAND_SIDE = "one_hand_side"
         const val DEFAULT_FLICK_THRESHOLD_DP = 24f
         const val MIN_FLICK_THRESHOLD_DP = 10f

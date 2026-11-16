@@ -29,6 +29,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.remember
@@ -146,6 +147,11 @@ private fun MyKeyboardCard() {
     var charge by remember { mutableStateOf(settings.clearChargeMs.toFloat()) }
     var autoBracket by remember { mutableStateOf(settings.autoBracket) }
     var glass by remember { mutableStateOf(settings.liquidGlass) }
+    var refract by remember { mutableStateOf(settings.glassRefract) }
+    var frost by remember { mutableStateOf(settings.glassFrost) }
+    var glassLight by remember { mutableStateOf(settings.glassLight) }
+    var glassShadow by remember { mutableStateOf(settings.glassShadow) }
+    var popup by remember { mutableStateOf(settings.flickGuideStyle != FlickGuideStyle.NONE) }
 
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -188,6 +194,32 @@ private fun MyKeyboardCard() {
                 body = "キーを半透明のガラス調にします。OFFにすると、前の平らな見た目に戻ります",
                 checked = glass,
             ) { glass = it; settings.liquidGlass = it }
+
+            if (glass) {
+                Text(
+                    "ガラスの調整（ゆがみは、背景画像を設定したときに見えます）",
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                GlassSlider("ゆがみ", "なし", "強い", refract, 0f..2f, { refract = it }) { settings.glassRefract = refract }
+                GlassSlider("くもり", "透明", "すりガラス", frost, 0f..1f, { frost = it }) { settings.glassFrost = frost }
+                GlassSlider("縁の光", "弱い", "強い", glassLight, 0f..2f, { glassLight = it }) { settings.glassLight = glassLight }
+                GlassSlider("影", "なし", "濃い", glassShadow, 0f..2f, { glassShadow = it }) { settings.glassShadow = glassShadow }
+                TextButton(onClick = {
+                    refract = 1f; frost = 0.2f; glassLight = 1f; glassShadow = 1f
+                    settings.glassRefract = 1f; settings.glassFrost = 0.2f; settings.glassLight = 1f; settings.glassShadow = 1f
+                }) { Text("ガラスの調整を最初に戻す") }
+            }
+
+            HorizontalDivider()
+
+            SettingSwitch(
+                title = "キーを押したときのポップアップ",
+                body = "キーを押している間、入る文字を吹き出しで出します。☺記キー長押しのメニューでも切り替えられます",
+                checked = popup,
+            ) {
+                popup = it
+                settings.flickGuideStyle = if (it) FlickGuideStyle.PREVIEW else FlickGuideStyle.NONE
+            }
 
             HorizontalDivider()
 
@@ -271,6 +303,31 @@ private fun MyKeyboardCard() {
 }
 
 /** タイトル・説明・スイッチの1行。 */
+/** ガラスの調整用のスライダー1本（名前・左右の言葉つき）。 */
+@Composable
+private fun GlassSlider(
+    title: String,
+    low: String,
+    high: String,
+    value: Float,
+    range: ClosedFloatingPointRange<Float>,
+    onChange: (Float) -> Unit,
+    onDone: () -> Unit,
+) {
+    Text(title, style = MaterialTheme.typography.bodyLarge)
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(low, style = MaterialTheme.typography.bodySmall)
+        Slider(
+            value = value,
+            onValueChange = onChange,
+            onValueChangeFinished = onDone,
+            valueRange = range,
+            modifier = Modifier.weight(1f).padding(horizontal = 8.dp),
+        )
+        Text(high, style = MaterialTheme.typography.bodySmall)
+    }
+}
+
 @Composable
 private fun SettingSwitch(
     title: String,
