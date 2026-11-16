@@ -89,7 +89,9 @@ jobs:
           echo "sdk.dir=$ANDROID_HOME" > local.properties
           ./gradlew :app:assembleDebug --no-daemon
           mkdir -p dist
-          cp app/build/outputs/apk/debug/*.apk dist/my-keyboard.apk
+          ls app/build/outputs/apk/debug/
+          # Fold7 は arm64。ABIごとに分かれた APK から arm64 版を選ぶ
+          cp "$(ls app/build/outputs/apk/debug/*arm64*.apk | head -1)" dist/my-keyboard.apk
           ls -la dist
 
       - uses: actions/upload-artifact@v4
