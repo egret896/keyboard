@@ -303,10 +303,10 @@
         {
           "weight": 1.4,
           "center": {
-            "label": "かな",
+            "label": "あA1",
             "action": {
               "type": "layout",
-              "layoutId": "qwerty_kana"
+              "layoutId": "flick_symbol"
             }
           },
           "style": "MODIFIER"
