@@ -53,7 +53,7 @@ class KeyboardMenuView(
                     setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
                     // キーと同じ：縁なしの半透明（暗いテーマは薄く、明るいテーマは白く）
                     background = GradientDrawable().apply {
-                        cornerRadius = 14f * density
+                        cornerRadius = 1000f * density // 丸めきる（錠剤の形）
                         val c = theme.labelColor
                         val dark = (android.graphics.Color.red(c) + android.graphics.Color.green(c) + android.graphics.Color.blue(c)) > 384
                         setColor(android.graphics.Color.argb(if (dark) 0x2E else 0xF2, 255, 255, 255))

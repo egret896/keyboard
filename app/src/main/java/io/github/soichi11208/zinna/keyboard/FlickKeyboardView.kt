@@ -382,7 +382,7 @@ class FlickKeyboardView @JvmOverloads constructor(
 
     // ------------------------------------------------------------ リキッドグラス
     //
-    //  Figma の「ガラス」効果（ライト -45°）にならう。
+    //  Figma の「ガラス」効果（ライト -45°）にならう。キーの角は丸めきる（錠剤の形）。
     //
     //   ✦✦╭──────────╮      ← 左上：縁の内側がふんわり白く光る（厚みのあるガラスの縁）
     //   ✦ │   くもり   │      ← 中：ほんのり白い半透明
@@ -523,7 +523,8 @@ class FlickKeyboardView @JvmOverloads constructor(
             if (sx > 0) glassRect.right += sx else glassRect.left += sx
             if (sy > 0) glassRect.bottom += sy else glassRect.top += sy
         }
-        val r = max(theme.keyCornerRadiusDp, 13f) * d
+        // 角は丸めきる（錠剤の形）。高さか幅の短い方の半分。
+        val r = kotlin.math.min(b.width(), b.height()) / 2f
         val character = placed.spec.style == KeyStyle.CHARACTER
         val rest = if (character) (if (darkTheme) 0x1A else 0x8C) else (if (darkTheme) 0x0D else 0x4D)
         val pressed = if (darkTheme) 0x3D else 0xCC
@@ -584,7 +585,7 @@ class FlickKeyboardView @JvmOverloads constructor(
         previewRect.set(bounds)
         previewRect.offset(0f, -(bounds.height() + gap) * grow)
         clampIntoView(previewRect)
-        val r = max(theme.keyCornerRadiusDp, 13f) * d
+        val r = kotlin.math.min(previewRect.width(), previewRect.height()) / 2f
 
         // くびれ：キーの上辺と吹き出しの下辺を、内側に反ったカーブでつなぐ
         val neckTop = previewRect.bottom
@@ -628,7 +629,7 @@ class FlickKeyboardView @JvmOverloads constructor(
             if (glass) drawGlassKey(canvas, placed)
             else if (paint != null) canvas.drawRoundRect(placed.bounds, radius, radius, paint)
             if (placed === gaugeKey) {
-                drawGauge(canvas, placed, radius)
+                drawGauge(canvas, placed, if (glass) kotlin.math.min(placed.bounds.width(), placed.bounds.height()) / 2f else radius)
                 val hintBaseline = placed.bounds.centerY() - (labelPaint.descent() + labelPaint.ascent()) / 2f
                 canvas.drawText("全消", placed.bounds.centerX(), hintBaseline, labelPaint)
                 return
