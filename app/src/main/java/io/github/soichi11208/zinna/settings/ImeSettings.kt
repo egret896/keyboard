@@ -91,6 +91,14 @@ class ImeSettings(context: Context) {
             bumpRevision()
         }
 
+    /** 全削除ゲージが満タンになるまでの時間（ミリ秒）。 */
+    var clearChargeMs: Long
+        get() = prefs.getLong(KEY_CLEAR_CHARGE, 1000L)
+        set(value) {
+            prefs.edit().putLong(KEY_CLEAR_CHARGE, value).apply()
+            bumpRevision()
+        }
+
     /** 括弧を入力したら閉じ括弧も入れて、カーソルを括弧の中に置く。 */
     var autoBracket: Boolean
         get() = prefs.getBoolean(KEY_AUTO_BRACKET, true)
@@ -210,6 +218,7 @@ class ImeSettings(context: Context) {
         private const val KEY_TOGGLE_INPUT = "toggle_input"
         private const val KEY_HOLD_TO_CLEAR = "hold_to_clear"
         private const val KEY_AUTO_BRACKET = "auto_bracket"
+        private const val KEY_CLEAR_CHARGE = "clear_charge_ms"
         const val DEFAULT_FLICK_THRESHOLD_DP = 24f
         const val MIN_FLICK_THRESHOLD_DP = 10f
         const val MAX_FLICK_THRESHOLD_DP = 48f

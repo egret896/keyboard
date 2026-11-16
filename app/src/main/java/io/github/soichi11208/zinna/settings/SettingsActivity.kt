@@ -143,6 +143,7 @@ private fun MyKeyboardCard() {
     var threshold by remember { mutableStateOf(settings.flickThresholdDp) }
     var toggleInput by remember { mutableStateOf(settings.toggleInput) }
     var holdToClear by remember { mutableStateOf(settings.holdToClear) }
+    var charge by remember { mutableStateOf(settings.clearChargeMs.toFloat()) }
     var autoBracket by remember { mutableStateOf(settings.autoBracket) }
 
     Card(modifier = Modifier.fillMaxWidth()) {
@@ -213,6 +214,25 @@ private fun MyKeyboardCard() {
                 body = "⌫を押したまま指を左にずらして止めると、赤いゲージがたまり、満タンで入力欄の文字を全部消します。普通の長押しは1文字ずつ連続で消します",
                 checked = holdToClear,
             ) { holdToClear = it; settings.holdToClear = it }
+
+            if (holdToClear) {
+                Text(
+                    "全削除のチャージ時間：%.1f 秒".format(charge / 1000f),
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("短い", style = MaterialTheme.typography.bodySmall)
+                    Slider(
+                        value = charge,
+                        onValueChange = { charge = it },
+                        onValueChangeFinished = { settings.clearChargeMs = charge.toLong() },
+                        valueRange = 300f..3000f,
+                        steps = 26,
+                        modifier = Modifier.weight(1f).padding(horizontal = 8.dp),
+                    )
+                    Text("長い", style = MaterialTheme.typography.bodySmall)
+                }
+            }
 
             HorizontalDivider()
 

@@ -97,6 +97,9 @@ class FlickKeyboardView @JvmOverloads constructor(
      */
     var holdToClear: Boolean = true
 
+    /** ゲージが空から満タンになるまでの時間（ミリ秒）。設定で変えられる。 */
+    var gaugeFillMs: Long = 1000L
+
     /** ゲージが満タンになったときに呼ばれる（全削除）。 */
     var clearAllListener: (() -> Unit)? = null
 
@@ -111,6 +114,7 @@ class FlickKeyboardView @JvmOverloads constructor(
                 gaugeKey = null
                 performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
                 clearAllListener?.invoke()
+                playClearWave()
                 invalidate()
                 return
             }
@@ -122,7 +126,7 @@ class FlickKeyboardView @JvmOverloads constructor(
 
     private fun gaugeProgress(): Float {
         val elapsed = SystemClock.uptimeMillis() - gaugeStartedAt - GAUGE_DELAY_MS
-        return (elapsed.toFloat() / GAUGE_FILL_MS).coerceIn(0f, 1f)
+        return (elapsed.toFloat() / gaugeFillMs).coerceIn(0f, 1f)
     }
 
     private fun startGauge(key: PlacedKey) {
@@ -234,7 +238,63 @@ class FlickKeyboardView @JvmOverloads constructor(
         super.onDraw(canvas)
         val radius = theme.keyCornerRadiusDp * resources.displayMetrics.density
 
+        val waveT = waveProgress()
         for (placed in placedKeys) {
+            val bump = if (waveT >= 0f) waveBump(placed, waveT) else 0f
+            if (bump > 0f) {
+                canvas.save()
+                canvas.translate(0f, -bump * WAVE_HEIGHT_DP * resources.displayMetrics.density)
+            }
+            drawKey(canvas, placed, radius)
+            if (bump > 0f) {
+                wavePaint.alpha = (bump * 60).toInt()
+                canvas.drawRoundRect(placed.bounds, radius, radius, wavePaint)
+                canvas.restore()
+            }
+        }
+        if (waveT >= 0f) postInvalidateOnAnimation()
+
+        // Guides go on top of every key so a guide near the edge is never clipped by a neighbour.
+        for (touch in activeTouches.values) {
+            if (!touch.key.spec.hasFlicks) continue
+            when (guideStyle) {
+                FlickGuideStyle.PREVIEW -> drawFlickPreview(canvas, touch, radius)
+                FlickGuideStyle.DIRECTIONS -> drawFlickGuide(canvas, touch, radius)
+            }
+        }
+    }
+
+    // ------------------------------------------------------------ 全消しの波
+    //
+    //  全消しした瞬間、キーが右端から左端へ順番に少し浮いて沈む（約0.65秒）。
+    //   右 →→→→ 左
+    //   ⌫ さ か あ ↶   ← 右のキーから順に ふわっ
+    private var waveStartedAt = -1L
+    private val wavePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = android.graphics.Color.WHITE }
+
+    /** 波を始める。 */
+    fun playClearWave() {
+        waveStartedAt = SystemClock.uptimeMillis()
+        postInvalidateOnAnimation()
+    }
+
+    /** 波の進み具合 0〜1。波が出ていなければ -1。 */
+    private fun waveProgress(): Float {
+        if (waveStartedAt < 0) return -1f
+        val t = (SystemClock.uptimeMillis() - waveStartedAt).toFloat() / WAVE_MS
+        if (t >= 1f) { waveStartedAt = -1L; return -1f }
+        return t
+    }
+
+    /** そのキーがどれだけ浮いているか 0〜1。右のキーほど早く動き出す。 */
+    private fun waveBump(key: PlacedKey, t: Float): Float {
+        val fromRight = if (width > 0) 1f - key.bounds.centerX() / width else 0f
+        val u = (t - fromRight * 0.45f) / 0.55f
+        if (u <= 0f || u >= 1f) return 0f
+        return kotlin.math.sin(u * Math.PI).toFloat()
+    }
+
+    private fun drawKey(canvas: Canvas, placed: PlacedKey, radius: Float) {
             // With flat keys only the pressed one gets a shape: the resting keys are their labels
             // and nothing else, so the panel (or the user's background image) shows through.
             val paint = when {
@@ -248,24 +308,14 @@ class FlickKeyboardView @JvmOverloads constructor(
                 drawGauge(canvas, placed, radius)
                 val hintBaseline = placed.bounds.centerY() - (labelPaint.descent() + labelPaint.ascent()) / 2f
                 canvas.drawText("全消", placed.bounds.centerX(), hintBaseline, labelPaint)
-                continue
+                return
             }
             if (placed.spec.center.action is KeyAction.OpenPanel) {
                 drawPanelIcon(canvas, placed.bounds)
-                continue
+                return
             }
             val baseline = placed.bounds.centerY() - (labelPaint.descent() + labelPaint.ascent()) / 2f
             canvas.drawText(faceLabel(placed.spec), placed.bounds.centerX(), baseline, labelPaint)
-        }
-
-        // Guides go on top of every key so a guide near the edge is never clipped by a neighbour.
-        for (touch in activeTouches.values) {
-            if (!touch.key.spec.hasFlicks) continue
-            when (guideStyle) {
-                FlickGuideStyle.PREVIEW -> drawFlickPreview(canvas, touch, radius)
-                FlickGuideStyle.DIRECTIONS -> drawFlickGuide(canvas, touch, radius)
-            }
-        }
     }
 
     /** ⌫ の背景に、左から右へたまっていくゲージを描く。 */
@@ -615,8 +665,9 @@ class FlickKeyboardView @JvmOverloads constructor(
         /** 左へずらしてからゲージがたまり始めるまで。 */
         private const val GAUGE_DELAY_MS = 150L
 
-        /** ゲージが空から満タンになるまでの時間。 */
-        private const val GAUGE_FILL_MS = 1000L
+        /** 全消しの波の長さと、浮く高さ。 */
+        private const val WAVE_MS = 650f
+        private const val WAVE_HEIGHT_DP = 7f
 
         /** ゲージの色（半透明の赤）。 */
         private val GAUGE_COLOR = android.graphics.Color.argb(150, 0xE5, 0x39, 0x35)

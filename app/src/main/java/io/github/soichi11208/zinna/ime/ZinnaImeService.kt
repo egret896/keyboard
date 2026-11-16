@@ -237,6 +237,7 @@ class ZinnaImeService : InputMethodService() {
             listener = FlickKeyboardView.OnKeyOutputListener(::onKeyOutput)
             flickThresholdDp = settings.flickThresholdDp
             holdToClear = settings.holdToClear
+            gaugeFillMs = settings.clearChargeMs
             clearAllListener = ::clearAll
         }
 
