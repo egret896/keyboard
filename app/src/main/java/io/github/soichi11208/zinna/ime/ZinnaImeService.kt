@@ -855,7 +855,10 @@ class ZinnaImeService : InputMethodService() {
             if (stripContent == StripContent.CLIPBOARD) return@request
             val candidates = ZenzaiConversion.candidates(base, candidate)
             stripContent = StripContent.CANDIDATES
-            candidateView?.setCandidates(candidates, 0)
+            // AIの候補には色を付けない（後から出てくるので目立ちすぎる）。
+            // 変換キーで候補を選んでいる最中なら、その候補の色だけそのまま残す。
+            val focusedText = base.getOrNull(state.focusedCandidateIndex)?.text
+            candidateView?.setCandidates(candidates, candidates.indexOfFirst { it.text == focusedText && focusedText != null })
         }
     }
 
