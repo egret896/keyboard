@@ -227,6 +227,8 @@ class FlickKeyboardView @JvmOverloads constructor(
 
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
         super.onSizeChanged(w, h, oldw, oldh)
+        bevels.values.forEach { it.recycle() }
+        bevels.clear()
         labelPaint.textSize = theme.labelSizeSp * resources.displayMetrics.scaledDensity
         guideLabelPaint.textSize = theme.labelSizeSp * resources.displayMetrics.scaledDensity
         refreshPlacement()
@@ -380,14 +382,14 @@ class FlickKeyboardView @JvmOverloads constructor(
 
     // ------------------------------------------------------------ リキッドグラス
     //
-    //  iOS のキーボードにならう：ふだんのキーは「縁なし・のっぺり・半透明」。
-    //  光る縁やつやは、押している間だけ（指で押すとガラスのレンズになる）。
+    //  Figma の「ガラス」効果（ライト -45°）にならう。
     //
-    //   ふだん           押している間
-    //   ╭────────╮      ✦╭──────────╮   ← 左上と右下にだけ細い光（斜めから光が当たる）
-    //   │   あ   │       │    あ    │   ← 少しふくらんで明るくなる
-    //   ╰────────╯       ╰──────────╯✦
-    //  上下のグラデーション・常に光る縁は使わない（昔のガラケーっぽくなるため）。
+    //   ✦✦╭──────────╮      ← 左上：縁の内側がふんわり白く光る（厚みのあるガラスの縁）
+    //   ✦ │   くもり   │      ← 中：ほんのり白い半透明
+    //     ╰──────────╯ ✦    ← 右下：反対側にも少し光が回り込む
+    //
+    //  光の縁は「ぼかした太い線＋細い線」を一度だけ画像に描いておき、毎回はそれを貼るだけ（軽い）。
+    //  上下のグラデーションは使わない（昔のガラケーっぽくなるため）。
 
     /** リキッドグラス風に描くか。 */
     var glass: Boolean = true
@@ -426,13 +428,51 @@ class FlickKeyboardView @JvmOverloads constructor(
         )
         glassStroke.shader = glassShader
         shadowPaint.color = android.graphics.Color.argb(0x1A, 0, 0, 0)
+        bevels.values.forEach { it.recycle() }
+        bevels.clear()
     }
 
-    /** 縁の光を [rect] の大きさに合わせる。 */
-    private fun fitRim(rect: RectF) {
-        glassMatrix.setScale(rect.width(), rect.height())
-        glassMatrix.postTranslate(rect.left, rect.top)
-        glassShader?.setLocalMatrix(glassMatrix)
+    private val bevels = HashMap<Long, android.graphics.Bitmap>()
+    private val bevelPaint = Paint(Paint.FILTER_BITMAP_FLAG)
+
+    /** キーの大きさごとに、光る縁の画像を1枚だけ作って使い回す。 */
+    private fun bevel(w: Int, h: Int, r: Float): android.graphics.Bitmap {
+        val key = (w.toLong() shl 32) or h.toLong()
+        bevels[key]?.let { return it }
+        val d = resources.displayMetrics.density
+        val bmp = android.graphics.Bitmap.createBitmap(w.coerceAtLeast(1), h.coerceAtLeast(1), android.graphics.Bitmap.Config.ARGB_8888)
+        val c = Canvas(bmp)
+        val rect = RectF(0f, 0f, w.toFloat(), h.toFloat())
+        val clip = android.graphics.Path().apply { addRoundRect(rect, r, r, android.graphics.Path.Direction.CW) }
+        c.clipPath(clip)
+        fun diagonal(edge: Int, middle: Int, far: Int, stop: Float) = android.graphics.LinearGradient(
+            0f, 0f, w.toFloat(), h.toFloat(),
+            intArrayOf(
+                android.graphics.Color.argb(edge, 255, 255, 255),
+                android.graphics.Color.argb(middle, 255, 255, 255),
+                android.graphics.Color.argb(middle, 255, 255, 255),
+                android.graphics.Color.argb(far, 255, 255, 255),
+            ),
+            floatArrayOf(0f, stop, 1f - stop, 1f),
+            android.graphics.Shader.TileMode.CLAMP,
+        )
+        val glow = if (darkTheme) 0xF2 else 0xFF
+        // ふんわり光る太い縁（ぼかし）
+        c.drawRoundRect(rect, r, r, Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.STROKE
+            strokeWidth = 7f * d
+            shader = diagonal(glow, 0, glow * 3 / 4, 0.35f)
+            maskFilter = android.graphics.BlurMaskFilter(4f * d, android.graphics.BlurMaskFilter.Blur.NORMAL)
+        })
+        // くっきりした細い縁
+        val half = 0.5f * d
+        c.drawRoundRect(half, half, w - half, h - half, r, r, Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.STROKE
+            strokeWidth = 1f * d
+            shader = diagonal(0xE6, 0x1F, 0xB3, 0.4f)
+        })
+        bevels[key] = bmp
+        return bmp
     }
 
     private val shadowPaint = Paint(Paint.ANTI_ALIAS_FLAG)
@@ -485,8 +525,8 @@ class FlickKeyboardView @JvmOverloads constructor(
         }
         val r = max(theme.keyCornerRadiusDp, 13f) * d
         val character = placed.spec.style == KeyStyle.CHARACTER
-        val rest = if (character) (if (darkTheme) 0x2E else 0xF2) else (if (darkTheme) 0x17 else 0x8C)
-        val pressed = if (darkTheme) 0x46 else 0xFF
+        val rest = if (character) (if (darkTheme) 0x1A else 0x8C) else (if (darkTheme) 0x0D else 0x4D)
+        val pressed = if (darkTheme) 0x3D else 0xCC
         val alpha = (rest + (pressed - rest) * strength).toInt()
         // 明るいテーマだけ、キーの下にごく薄い影（iOS と同じく、キーが少し浮いて見える）
         if (!darkTheme) {
@@ -513,15 +553,11 @@ class FlickKeyboardView @JvmOverloads constructor(
             canvas.restore()
         }
 
-        // 縁の光は押している間だけ
-        if (strength > 0f) {
-            fitRim(glassRect)
-            glassStroke.alpha = (255 * strength).toInt()
-            val inset = glassStroke.strokeWidth / 2f
-            canvas.drawRoundRect(glassRect.left + inset, glassRect.top + inset,
-                glassRect.right - inset, glassRect.bottom - inset, r, r, glassStroke)
-            glassStroke.alpha = 255
-        }
+        // 光る縁（ふくらんだ時は少し伸ばして貼る）
+        val base = placed.bounds
+        val restAlpha = if (character) 255 else 0xB3
+        bevelPaint.alpha = (restAlpha + (255 - restAlpha) * strength).toInt()
+        canvas.drawBitmap(bevel(base.width().toInt(), base.height().toInt(), r), null, glassRect, bevelPaint)
     }
 
     /** 押した直後・離した直後の動きが残っているか（残っていれば次の画面も描く）。 */
@@ -572,8 +608,8 @@ class FlickKeyboardView @JvmOverloads constructor(
         canvas.drawRoundRect(previewRect, r, r, guideBackgroundPaint)
         guideBackgroundPaint.alpha = 255
         if (glassShader == null) prepareGlass()
-        fitRim(previewRect)
-        canvas.drawRoundRect(previewRect, r, r, glassStroke)
+        bevelPaint.alpha = 255
+        canvas.drawBitmap(bevel(previewRect.width().toInt(), previewRect.height().toInt(), r), null, previewRect, bevelPaint)
         guideLabelPaint.color = theme.flickGuideSelectedLabelColor
         val baseline =
             previewRect.centerY() - (guideLabelPaint.descent() + guideLabelPaint.ascent()) / 2f
