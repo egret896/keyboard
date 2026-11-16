@@ -251,7 +251,7 @@ class CandidateStripView(context: Context) : FrameLayout(context) {
             if (view.getTag(R.id.chip_icon) != action.iconRes) {
                 view.setTag(R.id.chip_icon, action.iconRes)
                 view.setCompoundDrawablesRelativeWithIntrinsicBounds(action.iconRes, 0, 0, 0)
-                if (view.isLaidOut) Anim.pop(view)
+                if (view.isLaidOut) Anim.swap(view)
             }
             view.contentDescription = action.description ?: action.label
             // アイコンだけのボタンは、文字との隙間をなくして左右を広めにとる（押しやすく）。

@@ -1,42 +1,40 @@
 package io.github.soichi11208.zinna.keyboard
 
 import android.view.View
-import android.view.animation.DecelerateInterpolator
-import android.view.animation.OvershootInterpolator
+import android.view.animation.PathInterpolator
 
 /**
- * キーボードの軽いアニメーション。
+ * キーボードの控えめなアニメーション。
  *
- * どれも 80〜140ミリ秒の短いもので、透明度と大きさ（alpha / scale）だけを動かす。
- * この2つは画面の描き直しをせずにGPUが処理するので、入力の遅れや電池への影響はほぼない。
+ * 方針：弾まない・大きさを変えない・目立たない。
+ * 透明度と、ほんの少しの位置だけを、なめらかな減速カーブ（Material の標準カーブ）で動かす。
+ * どれも GPU だけで処理されるので、入力の遅れや電池への影響はほぼない。
  * 1文字打つごとに動くもの（候補の更新など）には付けていない。
  *
- *   fadeIn  … パネルを開く・画面を切り替えるとき、ふわっと出す
- *   tap     … 候補やボタンを押したとき、少し縮んで戻る
- *   pop     … アイコンが変わったとき（鍵の開け閉めなど）、ぽんと出す
+ *   fadeIn  … パネルを開く・画面を切り替えるとき、下から少しだけ浮かび上がるように出す
+ *   tap     … 候補やボタンを押したとき、一瞬だけ薄くなって戻る
+ *   swap    … アイコンが変わったとき（鍵の開け閉めなど）、静かに入れ替わる
  */
 object Anim {
-    private val decelerate = DecelerateInterpolator()
+    private val curve = PathInterpolator(0.4f, 0f, 0.2f, 1f)
 
-    fun fadeIn(view: View, from: Float = 0f, durationMs: Long = 140L) {
+    fun fadeIn(view: View, from: Float = 0f, durationMs: Long = 200L) {
         view.animate().cancel()
         view.alpha = from
-        view.animate().alpha(1f).setDuration(durationMs).setInterpolator(decelerate)
+        view.translationY = if (from == 0f) 6f * view.resources.displayMetrics.density else 0f
+        view.animate().alpha(1f).translationY(0f).setDuration(durationMs).setInterpolator(curve)
             .withLayer().start()
     }
 
     fun tap(view: View) {
         view.animate().cancel()
-        view.animate().scaleX(0.9f).scaleY(0.9f).setDuration(60L).withEndAction {
-            view.animate().scaleX(1f).scaleY(1f).setDuration(90L).setInterpolator(decelerate).start()
-        }.start()
+        view.alpha = 0.55f
+        view.animate().alpha(1f).setDuration(220L).setInterpolator(curve).start()
     }
 
-    fun pop(view: View) {
+    fun swap(view: View) {
         view.animate().cancel()
-        view.scaleX = 0.6f
-        view.scaleY = 0.6f
-        view.animate().scaleX(1f).scaleY(1f).setDuration(160L)
-            .setInterpolator(OvershootInterpolator(2f)).start()
+        view.alpha = 0f
+        view.animate().alpha(1f).setDuration(240L).setInterpolator(curve).start()
     }
 }

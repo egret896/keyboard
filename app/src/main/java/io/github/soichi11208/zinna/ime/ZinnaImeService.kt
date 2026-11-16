@@ -710,7 +710,7 @@ class ZinnaImeService : InputMethodService() {
         lastTableKey = null
         layout = next
         keyboardView?.layout = adaptForWidth(next)
-        keyboardView?.let { Anim.fadeIn(it, from = 0.6f) }
+        keyboardView?.let { Anim.fadeIn(it, from = 0.85f, durationMs = 160L) }
         // Set alongside the layout, not once at view creation: the guide depends on which plane is
         // showing, and switching planes never rebuilds the view.
         keyboardView?.guideStyle = guideStyleFor(next)
