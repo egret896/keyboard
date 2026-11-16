@@ -62,10 +62,9 @@ class KeyboardPanelView(context: Context) : LinearLayout(context) {
 
     /**
      * [child] の真後ろに見えている背景（色＋画像）を、[child] と同じ大きさの画像にして返す。
-     * 背景画像がないときは null（ゆがめる物がないので屈折もしない）。
+     * 背景が単色でも返す（ガラスの色・明るさ・影の色を背景に合わせるため）。
      */
     fun snapshotBehind(child: android.view.View): Bitmap? {
-        bitmap ?: return null
         if (child.width <= 0 || child.height <= 0 || width == 0 || height == 0) return null
         var ox = 0f
         var oy = 0f

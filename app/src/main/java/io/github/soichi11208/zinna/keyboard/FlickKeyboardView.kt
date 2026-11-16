@@ -441,7 +441,8 @@ class FlickKeyboardView @JvmOverloads constructor(
     /** 背景が変わった回数（変わったらレンズを作り直す）。 */
     var backdropRevision: () -> Int = { 0 }
     @Volatile private var lensSignature: String? = null
-    private var lenses: Map<PlacedKey, android.graphics.Bitmap> = emptyMap()
+    /** キーごとの「ふだん」と「押している」のガラス画像。 */
+    private var lenses: Map<PlacedKey, Pair<Lens.Result, Lens.Result>> = emptyMap()
 
     /** キーの並びか背景が変わっていたら、レンズ画像を裏で作り直す。 */
     private fun ensureLenses() {
@@ -458,11 +459,14 @@ class FlickKeyboardView @JvmOverloads constructor(
         snapshot.recycle()
         val keys = placedKeys.map { it to RectF(it.bounds) }
         val density = resources.displayMetrics.density
+        val labelLight = darkTheme
         LENS_WORKER.execute {
-            val made = HashMap<PlacedKey, android.graphics.Bitmap>()
+            val made = HashMap<PlacedKey, Pair<Lens.Result, Lens.Result>>()
             for ((key, rect) in keys) {
                 if (lensSignature != signature) return@execute
-                Lens.render(pixels, sw, sh, rect, density)?.let { made[key] = it }
+                val rest = Lens.render(pixels, sw, sh, rect, density, labelLight, 0f) ?: continue
+                val pressed = Lens.render(pixels, sw, sh, rect, density, labelLight, 1f) ?: continue
+                made[key] = rest to pressed
             }
             post { if (lensSignature == signature) { lenses = made; invalidate() } }
         }
@@ -564,16 +568,47 @@ class FlickKeyboardView @JvmOverloads constructor(
         val rest = if (character) (if (darkTheme) 0x1A else 0x8C) else (if (darkTheme) 0x0D else 0x4D)
         val pressed = if (darkTheme) 0x3D else 0xCC
         val alpha = (rest + (pressed - rest) * strength).toInt()
+        val lens = lenses[placed]
+        if (lens != null) {
+            // 光の計算で作ったガラス画像を貼る。押している度合いで「押した版」を重ねる（厚み・屈折・影が強まる）
+            drawLens(canvas, lens.first, glassRect, 255)
+            if (strength > 0f) drawLens(canvas, lens.second, glassRect, (255 * strength).toInt())
+            drawFingerLight(canvas, r, strength, lx, ly)
+            return
+        }
+        // （ガラス画像ができるまでの一瞬だけ）簡易版で描く
         // 明るいテーマだけ、キーの下にごく薄い影（iOS と同じく、キーが少し浮いて見える）
         if (!darkTheme) {
             val drop = 1.5f * d
             canvas.drawRoundRect(glassRect.left, glassRect.top + drop, glassRect.right, glassRect.bottom + drop, r, r, shadowPaint)
         }
-        // 背景画像があれば、レンズ越しにゆがんだ背景を先に敷く（押してふくらむと一緒に伸びる）
-        lenses[placed]?.let { canvas.drawBitmap(it, null, glassRect, lensPaint) }
         glassFill.color = android.graphics.Color.argb(alpha, 255, 255, 255)
         canvas.drawRoundRect(glassRect, r, r, glassFill)
 
+        drawFingerLight(canvas, r, strength, lx, ly)
+
+        // 光る縁（ふくらんだ時は少し伸ばして貼る）
+        val base = placed.bounds
+        val restAlpha = if (character) 255 else 0xB3
+        bevelPaint.alpha = (restAlpha + (255 - restAlpha) * strength).toInt()
+        canvas.drawBitmap(bevel(base.width().toInt(), base.height().toInt(), r), null, glassRect, bevelPaint)
+    }
+
+    private val lensRect = RectF()
+
+    /** ガラス画像を [rect]（キーの形）に合わせて貼る。画像には影の余白があるので、その分広げる。 */
+    private fun drawLens(canvas: Canvas, lens: Lens.Result, rect: RectF, alpha: Int) {
+        val bw = lens.bitmap.width - 2f * lens.margin
+        val bh = lens.bitmap.height - 2f * lens.margin
+        val sx = rect.width() / bw
+        val sy = rect.height() / bh
+        lensRect.set(rect.left - lens.margin * sx, rect.top - lens.margin * sy, rect.right + lens.margin * sx, rect.bottom + lens.margin * sy)
+        lensPaint.alpha = alpha
+        canvas.drawBitmap(lens.bitmap, null, lensRect, lensPaint)
+    }
+
+    /** 押している間、指の位置にやわらかい光（押下時の光沢の変化）。 */
+    private fun drawFingerLight(canvas: Canvas, r: Float, strength: Float, lx: Float, ly: Float) {
         if (strength > 0f) {
             // 指の位置の光。キーの形の内側だけに描く。
             glassPath.reset()
@@ -590,12 +625,6 @@ class FlickKeyboardView @JvmOverloads constructor(
             canvas.drawCircle(lx, ly, radius, specularPaint)
             canvas.restore()
         }
-
-        // 光る縁（ふくらんだ時は少し伸ばして貼る）
-        val base = placed.bounds
-        val restAlpha = if (character) 255 else 0xB3
-        bevelPaint.alpha = (restAlpha + (255 - restAlpha) * strength).toInt()
-        canvas.drawBitmap(bevel(base.width().toInt(), base.height().toInt(), r), null, glassRect, bevelPaint)
     }
 
     /** 押した直後・離した直後の動きが残っているか（残っていれば次の画面も描く）。 */
@@ -642,13 +671,21 @@ class FlickKeyboardView @JvmOverloads constructor(
             canvas.drawPath(glassPath, guideBackgroundPaint)
         }
 
-        guideBackgroundPaint.alpha = 0xEE
-        canvas.drawRoundRect(previewRect, r, r, guideBackgroundPaint)
-        guideBackgroundPaint.alpha = 255
-        if (glassShader == null) prepareGlass()
-        bevelPaint.alpha = 255
-        canvas.drawBitmap(bevel(previewRect.width().toInt(), previewRect.height().toInt(), r), null, previewRect, bevelPaint)
-        guideLabelPaint.color = theme.flickGuideSelectedLabelColor
+        val lens = lenses[touch.key]
+        if (lens != null) {
+            // キーの「押した版」のガラスが、しずくのように持ち上がる
+            guideBackgroundPaint.alpha = 255
+            drawLens(canvas, lens.second, previewRect, 255)
+            guideLabelPaint.color = theme.labelColor
+        } else {
+            guideBackgroundPaint.alpha = 0xEE
+            canvas.drawRoundRect(previewRect, r, r, guideBackgroundPaint)
+            guideBackgroundPaint.alpha = 255
+            if (glassShader == null) prepareGlass()
+            bevelPaint.alpha = 255
+            canvas.drawBitmap(bevel(previewRect.width().toInt(), previewRect.height().toInt(), r), null, previewRect, bevelPaint)
+            guideLabelPaint.color = theme.flickGuideSelectedLabelColor
+        }
         val baseline =
             previewRect.centerY() - (guideLabelPaint.descent() + guideLabelPaint.ascent()) / 2f
         canvas.drawText(output.label, previewRect.centerX(), baseline, guideLabelPaint)
