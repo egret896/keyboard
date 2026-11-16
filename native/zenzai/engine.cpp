@@ -120,6 +120,8 @@ std::string Zenzai::generate(const std::string & prompt, int max_tokens, int64_t
         int count = llama_vocab_n_tokens(vocab);
         llama_token token = std::max_element(logits, logits + count) - logits;
         if (llama_vocab_is_eog(vocab, token)) return output;
+        // Any control token (</s>, [PAD], ...) also ends the conversion, even if the model metadata is off.
+        if (llama_vocab_get_attr(vocab, token) & LLAMA_TOKEN_ATTR_CONTROL) return output;
         char piece[128];
         int size = llama_token_to_piece(vocab, token, piece, sizeof(piece), 0, false);
         if (size <= 0 || size > static_cast<int>(sizeof(piece))) return {};

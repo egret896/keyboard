@@ -52,6 +52,11 @@ s = s.replace(old, 'res = "gpt-2"')
 open(p, "w", encoding="utf-8").write(s)
 PY
   python3 "${conv}" "${hf}" --outtype q8_0 --outfile "${dest}/zenzai-plus-ft-f16.gguf"
+  # 元の設定では「文の終わり」の印が別の番号になっているので、正しい </s> に直す
+  eos="$(python3 -c 'import json,sys; v=json.load(open(sys.argv[1])); print(v["</s>"])' "${hf}/vocab.json")"
+  PYTHONPATH="${ROOT}/third_party/zenzai-llama/gguf-py" python3 \
+    "${ROOT}/third_party/zenzai-llama/gguf-py/gguf/scripts/gguf_set_metadata.py" --force \
+    "${dest}/zenzai-plus-ft-f16.gguf" tokenizer.ggml.eos_token_id "${eos}"
   pick="model.safetensors（q8_0 に変換）"
 fi
 head -c 4 "${dest}/zenzai-plus-ft-f16.gguf" | grep -q GGUF
