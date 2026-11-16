@@ -226,8 +226,11 @@ def build_symbol(table: dict[str, str]) -> dict:
              char_key(table, SYMBOL_KEYS["punc"], label=".,-/")]
     # Gboard puts a second symbol page behind !?# here. We have no such page yet, so the slot goes
     # back to kana rather than advertising something that does not exist.
-    return build(SYMBOL_ID, "記号・数字", "TOGGLE_FLICK_NUMBER", keys,
-                 switch(KANA_LABEL, KANA_ID), switch(CYCLE_LABEL, KANA_ID))
+    layout = build(SYMBOL_ID, "記号・数字", "TOGGLE_FLICK_NUMBER", keys,
+                   switch(KANA_LABEL, KANA_ID), switch(CYCLE_LABEL, KANA_ID))
+    # 1段目の左は、記号の2ページ目（flick_symbol2）への切り替え
+    layout["rows"][0]["keys"][0] = switch("!?#", "flick_symbol2")
+    return layout
 
 
 # A kana is identified by which key it sits on and which flick direction reaches it. Keeping those

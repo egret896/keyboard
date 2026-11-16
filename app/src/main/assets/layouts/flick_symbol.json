@@ -8,9 +8,10 @@
         {
           "weight": 1.0,
           "center": {
-            "label": "↶",
+            "label": "!?#",
             "action": {
-              "type": "undo"
+              "type": "layout",
+              "layoutId": "flick_symbol2"
             }
           },
           "style": "MODIFIER"
