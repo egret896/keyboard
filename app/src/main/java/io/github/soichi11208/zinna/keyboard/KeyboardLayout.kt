@@ -40,7 +40,7 @@ data class KeyRow(
 ) {
     /** Total horizontal weight including the padding, which is what the row is divided into. */
     val totalWeight: Float
-        get() = padStart + padEnd + keys.sumOf { it.weight.toDouble() }.toFloat()
+        get() = padStart + padEnd + keys.sumOf { (it.weight + it.gapAfter).toDouble() }.toFloat()
 }
 
 @Serializable
@@ -59,6 +59,8 @@ data class KeySpec(
     val repeatable: Boolean = false,
     /** Visual role, so themes can style modifiers differently from character keys. */
     val style: KeyStyle = KeyStyle.CHARACTER,
+    /** このキーの右に空ける隙間（weight と同じ単位）。左右分割の真ん中に使う。 */
+    val gapAfter: Float = 0f,
 ) {
     fun output(direction: FlickDirection): KeyOutput? = when (direction) {
         FlickDirection.CENTER -> center

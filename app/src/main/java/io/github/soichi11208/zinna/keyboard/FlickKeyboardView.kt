@@ -173,7 +173,7 @@ class FlickKeyboardView @JvmOverloads constructor(
                     key,
                     RectF(x + gap, y + gap, x + keyWidth - gap, y + rowHeight - gap),
                 )
-                x += keyWidth
+                x += keyWidth + width * (key.gapAfter / rowWeight)
             }
             y += rowHeight
         }

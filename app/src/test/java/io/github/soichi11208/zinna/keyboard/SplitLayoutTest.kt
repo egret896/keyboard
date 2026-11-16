@@ -17,13 +17,15 @@ class SplitLayoutTest {
     }
 
     @Test
-    fun kanaSplitsIntoTwoMirroredHalvesWithFunctionKeysInTheMiddle() {
-        val split = SplitLayout.split(load("flick_kana"))
+    fun kanaBecomesTheSameKeyboardTwiceSideBySide() {
+        val original = load("flick_kana")
+        val split = SplitLayout.split(original)
         val first = split.rows[0].keys.map { it.faceLabel }
-        assertEquals(listOf("あ", "か", "さ", "↶", "⌫", "あ", "か", "さ"), first)
-        for (row in split.rows) {
-            assertEquals(8, row.keys.size)
-            assertEquals(row.keys.take(3), row.keys.takeLast(3))
+        assertEquals(listOf("↶", "あ", "か", "さ", "⌫", "↶", "あ", "か", "さ", "⌫"), first)
+        split.rows.forEachIndexed { i, row ->
+            assertEquals(10, row.keys.size)
+            assertEquals(original.rows[i].keys, row.keys.takeLast(5))
+            assertEquals(0.6f, row.keys[4].gapAfter)
         }
     }
 
