@@ -66,10 +66,16 @@ jobs:
       - name: 辞書を取ってくる
         run: ./scripts/fetch_dictionaries.sh
 
-      - name: mozc（漢字変換エンジン）をビルド
+      - name: bazelisk（ビルド道具）を入れる
         run: |
-          export BAZEL="$(command -v bazelisk || command -v bazel)"
-          ./scripts/build_mozc.sh
+          mkdir -p "$HOME/bin"
+          curl -fsSL -o "$HOME/bin/bazelisk" https://github.com/bazelbuild/bazelisk/releases/download/v1.25.0/bazelisk-linux-amd64
+          chmod +x "$HOME/bin/bazelisk"
+          echo "BAZEL=$HOME/bin/bazelisk" >> "$GITHUB_ENV"
+          "$HOME/bin/bazelisk" version || true
+
+      - name: mozc（漢字変換エンジン）をビルド
+        run: bash -x ./scripts/build_mozc.sh 2>&1 | grep -v '^+ \[\[' ; exit ${PIPESTATUS[0]}
 
       - name: キー配置を作る
         run: |
