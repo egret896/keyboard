@@ -193,7 +193,6 @@ private fun MyKeyboardCard() {
             Text("キーの見た目", style = MaterialTheme.typography.bodyLarge)
             for ((option, label) in listOf(
                 ImeSettings.LOOK_GLASS to "リキッドグラス（厚いガラス。背景画像がゆがんで見える）",
-                ImeSettings.LOOK_FROZEN to "フローズン（直角のすりガラスを敷き詰める）",
                 ImeSettings.LOOK_MINIMAL to "ミニマリスト（キーの間に細い線だけ）",
                 ImeSettings.LOOK_FLAT to "ふつう（平らなキー）",
             )) {

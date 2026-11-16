@@ -246,7 +246,6 @@ class ZinnaImeService : InputMethodService() {
             oneHand = effectiveOneHand()
             glass = settings.liquidGlass
             minimal = settings.minimalKeys
-            frozen = settings.frozenKeys
             lensParams = io.github.soichi11208.zinna.keyboard.Lens.Params(
                 refract = settings.glassRefract, frost = settings.glassFrost,
                 light = settings.glassLight, shadow = settings.glassShadow,

@@ -7,12 +7,7 @@ import java.io.File
 /** ガラスの計算が動くこと（と、見た目確認用の画像を build/ に書き出す）。 */
 class LensPreviewTest {
     @Test
-    fun rendersKeyboardOverPicture() = render(false, "build/lens-preview.argb")
-
-    @Test
-    fun rendersFrozenTiles() = render(true, "build/frozen-preview.argb")
-
-    private fun render(frozen: Boolean, path: String) {
+    fun rendersKeyboardOverPicture() {
         val w = 1080; val h = 640
         val bg = IntArray(w * h)
         for (y in 0 until h) for (x in 0 until w) {
@@ -29,13 +24,8 @@ class LensPreviewTest {
         val kw = w / 5f; val kh = (h - 26) / 4f
         for (row in 0 until 4) for (col in 0 until 5) {
             val press = if (row == 1 && col == 2) 1f else 0f
-            val seam = 0f
-            val left = if (frozen) col * kw + seam else col * kw + 6 * d
-            val top = if (frozen) row * (h / 4f) + seam else 13 + row * kh + 6 * d
-            val kwi = if (frozen) kw - 2 * seam else kw - 12 * d
-            val khi = if (frozen) h / 4f - 2 * seam else kh - 12 * d
-            val params = if (frozen) Lens.Params(refract = 0.6f, frost = 0.4f, light = 1f, shadow = 0f, square = true) else Lens.Params()
-            val p = Lens.renderPixels(bg, w, h, left, top, kwi, khi, d, true, press, params)!!
+            val left = col * kw + 6 * d; val top = 13 + row * kh + 6 * d
+            val p = Lens.renderPixels(bg, w, h, left, top, kw - 12 * d, kh - 12 * d, d, true, press)!!
             val ox = (left - p.margin).toInt(); val oy = (top - p.margin).toInt()
             for (y in 0 until p.height) for (x in 0 until p.width) {
                 val tx = ox + x; val ty = oy + y
@@ -51,6 +41,6 @@ class LensPreviewTest {
         File("build").mkdirs()
         val bytes = java.nio.ByteBuffer.allocate(canvas.size * 4)
         canvas.forEach { bytes.putInt(it) }
-        File(path).writeBytes(bytes.array())
+        File("build/lens-preview.argb").writeBytes(bytes.array())
     }
 }

@@ -97,11 +97,13 @@ class ImeSettings(context: Context) {
         }
 
     /**
-     * キーの見た目。"glass"＝リキッドグラス、"frozen"＝フローズン、"minimal"＝ミニマリスト（罫線だけ）、"flat"＝平ら。
+     * キーの見た目。"glass"＝リキッドグラス、"minimal"＝ミニマリスト（罫線だけ）、"flat"＝平ら。
      * 前の版の「リキッドグラス ON/OFF」を引き継ぐ（OFF だった人は平ら）。
      */
     var keyLook: String
         get() = prefs.getString(KEY_KEY_LOOK, null)
+            // 一時期あった「フローズン」を選んでいた人は、リキッドグラスに戻す
+            ?.let { if (it == "frozen") LOOK_GLASS else it }
             ?: if (prefs.getBoolean(KEY_LIQUID_GLASS, true)) LOOK_GLASS else LOOK_FLAT
         set(value) {
             prefs.edit().putString(KEY_KEY_LOOK, value).apply()
@@ -110,11 +112,8 @@ class ImeSettings(context: Context) {
 
     /** リキッドグラス風の見た目（半透明のキー）。 */
     var liquidGlass: Boolean
-        get() = keyLook == LOOK_GLASS || keyLook == LOOK_FROZEN
+        get() = keyLook == LOOK_GLASS
         set(value) { keyLook = if (value) LOOK_GLASS else LOOK_FLAT }
-
-    /** フローズン（直角で敷き詰めたすりガラス）。 */
-    val frozenKeys: Boolean get() = keyLook == LOOK_FROZEN
 
     /** ミニマリスト（キーの間に細い線だけ）。 */
     val minimalKeys: Boolean get() = keyLook == LOOK_MINIMAL
@@ -285,7 +284,6 @@ class ImeSettings(context: Context) {
         const val LOOK_GLASS = "glass"
         const val LOOK_MINIMAL = "minimal"
         const val LOOK_FLAT = "flat"
-        const val LOOK_FROZEN = "frozen"
         private const val KEY_GLASS_REFRACT = "glass_refract"
         private const val KEY_GLASS_FROST = "glass_frost"
         private const val KEY_GLASS_LIGHT = "glass_light"
