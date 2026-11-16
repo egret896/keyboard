@@ -84,8 +84,6 @@ jobs:
 
       - name: APK をビルド
         run: |
-          mkdir -p ~/.android
-          cp signing/debug.keystore ~/.android/debug.keystore
           echo "sdk.dir=$ANDROID_HOME" > local.properties
           ./gradlew :app:assembleDebug --no-daemon
           mkdir -p dist
@@ -93,6 +91,8 @@ jobs:
           # Fold7 は arm64。ABIごとに分かれた APK から arm64 版を選ぶ
           cp "$(ls app/build/outputs/apk/debug/*arm64*.apk | head -1)" dist/my-keyboard.apk
           ls -la dist
+          # 署名が signing/debug.keystore のものか確認（違うと上書きインストールできない）
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --print-certs dist/my-keyboard.apk | grep -i "e2489b354b7a88d07072cd661a8ef89bdc49017de133044b5089f1240f05d655"
 
       - uses: actions/upload-artifact@v4
         with:

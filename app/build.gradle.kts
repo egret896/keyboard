@@ -43,11 +43,19 @@ android {
         applicationId = "io.github.egret896.mykeyboard"
         minSdk = 24
         targetSdk = 35
-        versionCode = 12
+        // GitHub Actions の実行番号で毎回増やす（新しい版として上書きできるように）
+        versionCode = 12 + (System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 0)
         versionName = "0.1.2"
     }
 
     signingConfigs {
+        // 毎回同じ鍵で署名する（鍵が変わると上書きインストールできなくなる）
+        getByName("debug") {
+            storeFile = rootProject.file("signing/debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
         if (signing != null) {
             create("release") {
                 storeFile = file(signing.getProperty("storeFile"))
