@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">マイキーボード</string>
-    <string name="ime_name">マイキーボード</string>
+    <string name="app_name">KKKeyboard</string>
+    <string name="ime_name">KKKeyboard</string>
     <string name="subtype_ja">日本語</string>
     <string name="settings_title">zinna-IME 設定</string>
     <string name="enable_ime">キーボードを有効化</string>
