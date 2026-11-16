@@ -439,10 +439,6 @@ class ZinnaImeService : InputMethodService() {
 
     private fun onKeyOutput(output: KeyOutput, key: KeySpec, direction: FlickDirection) {
         toggleTimeout.cancel()
-        if (settings.autoBracket && insertBracketPair(output)) {
-            lastTableKey = null
-            return
-        }
         when (val action = output.action) {
             is KeyAction.Input -> {
                 refreshClientContext()
@@ -527,26 +523,6 @@ class ZinnaImeService : InputMethodService() {
         fun cancel() = handler.removeCallbacks(task)
     }
 
-    /**
-     * 開き括弧なら閉じ括弧もいっしょに入れて、カーソルを間に置く。入れたら true。
-     * かな画面の「(」は全角の「（）」にする（mozc に渡すと全角になるのと同じ）。
-     */
-    private fun insertBracketPair(output: KeyOutput): Boolean {
-        val action = output.action
-        if (action !is KeyAction.Input && action !is KeyAction.InsertSymbol) return false
-        var open = output.label
-        val japanese = layout?.inputStyle == InputStyle.FLICK_HIRAGANA
-        if (japanese) open = FULL_WIDTH_OF[open] ?: open
-        val close = BRACKET_PAIRS[open] ?: return false
-        val ic = currentInputConnection ?: return false
-        if (isComposing) render(session.submit())
-        // 閉じ括弧は「カーソルを前に残したまま」入れる（位置を読み直さないので、ずれない）
-        ic.beginBatchEdit()
-        ic.commitText(open, 1)
-        ic.commitText(close, 0)
-        ic.endBatchEdit()
-        return true
-    }
 
     /**
      * 入力中のひらがなをカタカナにして確定する。
@@ -1228,13 +1204,6 @@ class ZinnaImeService : InputMethodService() {
         /** 全削除で一度に見る文字数の上限。 */
         private const val CLEAR_ALL_MAX_CHARS = 100_000
 
-        private val BRACKET_PAIRS = mapOf(
-            "(" to ")", "（" to "）", "「" to "」", "『" to "』", "【" to "】",
-            "〈" to "〉", "《" to "》", "〔" to "〕", "［" to "］", "[" to "]",
-            "{" to "}", "｛" to "｝", "“" to "”", "‘" to "’",
-        )
-
-        private val FULL_WIDTH_OF = mapOf("(" to "（", "[" to "［", "{" to "｛")
 
         /** '*' in mozc's flick/12-key tables. See data/preedit/flick-hiragana.tsv upstream. */
         private const val CYCLE_MODIFIER_KEY = "*"

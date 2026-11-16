@@ -149,7 +149,6 @@ private fun MyKeyboardCard() {
     var toggleInput by remember { mutableStateOf(settings.toggleInput) }
     var holdToClear by remember { mutableStateOf(settings.holdToClear) }
     var charge by remember { mutableStateOf(settings.clearChargeMs.toFloat()) }
-    var autoBracket by remember { mutableStateOf(settings.autoBracket) }
     var twoLines by remember { mutableStateOf(settings.candidateTwoLines) }
     var pressShape by remember { mutableStateOf(settings.pressShape) }
     var pressColor by remember { mutableStateOf(settings.pressColor) }
@@ -320,14 +319,6 @@ private fun MyKeyboardCard() {
                 body = "OFFは1行（横にスクロール）。ONにすると候補バーが2行ぶんの高さになり、キーボード全体が少し高くなります",
                 checked = twoLines,
             ) { twoLines = it; settings.candidateTwoLines = it }
-
-            HorizontalDivider()
-
-            SettingSwitch(
-                title = "括弧の中にカーソルを移動",
-                body = "「（」などを入れると閉じ括弧も一緒に入り、カーソルが括弧の中に移ります",
-                checked = autoBracket,
-            ) { autoBracket = it; settings.autoBracket = it }
 
             HorizontalDivider()
 

@@ -242,6 +242,7 @@ class FlickKeyboardView @JvmOverloads constructor(
     }
 
     private fun refreshPlacement() {
+        pressFades.clear()
         placedKeys = if (width > 0 && height > 0) {
             computePlacement(width.toFloat(), height.toFloat())
         } else {
@@ -581,13 +582,47 @@ class FlickKeyboardView @JvmOverloads constructor(
     var pressColor: Int = 0
         set(value) { field = value; keyPressedPaint.color = if (value != 0) value else theme.keyPressedColor; invalidate() }
 
-    private fun drawPressed(canvas: Canvas, b: RectF, radius: Float) {
+    /** 指を離したあと、色がすっと消えていく途中のキー（キー → 離した時刻）。 */
+    private val pressFades = HashMap<PlacedKey, Long>()
+
+    /**
+     * 押したときの色を描く。ふわっと出て（約0.07秒）、離すとすっと消える（約0.15秒）。
+     *   押す   □ → ■（少し小さい所から広がる）
+     *   離す   ■ → □（薄くなって消える）
+     */
+    private fun drawPressed(canvas: Canvas, b: RectF, radius: Float, pressedAt: Long = 0L, fade: Float = 1f) {
         val r = when (pressShape) {
             1 -> 0f
             2 -> kotlin.math.min(b.width(), b.height()) / 2f
             else -> radius
         }
-        canvas.drawRoundRect(b, r, r, keyPressedPaint)
+        val t = if (pressedAt > 0L) ((SystemClock.uptimeMillis() - pressedAt) / PRESS_IN_MS.toFloat()).coerceIn(0f, 1f) else 1f
+        val k = ease(t)
+        val alpha = (k * fade).coerceIn(0f, 1f)
+        val baseAlpha = keyPressedPaint.alpha
+        keyPressedPaint.alpha = (baseAlpha * alpha).toInt()
+        val inset = (1f - k) * kotlin.math.min(b.width(), b.height()) * 0.08f
+        pressRect.set(b.left + inset, b.top + inset, b.right - inset, b.bottom - inset)
+        canvas.drawRoundRect(pressRect, r, r, keyPressedPaint)
+        keyPressedPaint.alpha = baseAlpha
+        if (t < 1f) postInvalidateOnAnimation()
+    }
+
+    private val pressRect = RectF()
+
+    /** 押している指の、押した時刻（押していなければ 0）。 */
+    private fun pressedAt(key: PlacedKey): Long {
+        for (touch in activeTouches.values) if (touch.key === key) return touch.downAt
+        return 0L
+    }
+
+    /** 離したあとの消えかけの色を描く。描いたら true。 */
+    private fun drawPressFade(canvas: Canvas, placed: PlacedKey, radius: Float) {
+        val at = pressFades[placed] ?: return
+        val t = (SystemClock.uptimeMillis() - at) / PRESS_OUT_MS.toFloat()
+        if (t >= 1f) { pressFades.remove(placed); return }
+        drawPressed(canvas, placed.bounds, radius, 0L, 1f - t)
+        postInvalidateOnAnimation()
     }
 
     /** ミニマリスト（罫線だけ）で描くか。リキッドグラスより優先しない（glass が true なら glass）。 */
@@ -946,9 +981,21 @@ class FlickKeyboardView @JvmOverloads constructor(
             } else if (glass) drawGlassKey(canvas, placed)
             else if (minimal) {
                 // 押している間だけ、うっすら面を出す
-                if (isPressed(placed)) drawPressed(canvas, placed.bounds, radius)
-            } else if (paint === keyPressedPaint) drawPressed(canvas, placed.bounds, radius)
-            else if (paint != null) canvas.drawRoundRect(placed.bounds, radius, radius, paint)
+                if (isPressed(placed)) drawPressed(canvas, placed.bounds, radius, pressedAt(placed))
+                else drawPressFade(canvas, placed, radius)
+            } else if (paint === keyPressedPaint) {
+                // 押したキーは、ふだんの面の上に色がふわっと重なる
+                val rest = when {
+                    theme.flatKeys -> null
+                    placed.spec.style == KeyStyle.CHARACTER -> keyPaint
+                    else -> modifierPaint
+                }
+                if (rest != null) canvas.drawRoundRect(placed.bounds, radius, radius, rest)
+                drawPressed(canvas, placed.bounds, radius, pressedAt(placed))
+            } else {
+                if (paint != null) canvas.drawRoundRect(placed.bounds, radius, radius, paint)
+                drawPressFade(canvas, placed, radius)
+            }
             if (placed === gaugeKey) {
                 drawGauge(canvas, placed, if (glass) kotlin.math.min(placed.bounds.width(), placed.bounds.height()) / 2f else radius)
                 val hintBaseline = placed.bounds.centerY() - (labelPaint.descent() + labelPaint.ascent()) / 2f
@@ -1152,7 +1199,7 @@ class FlickKeyboardView @JvmOverloads constructor(
         val key = hitKey(x, y) ?: return
         // A new finger means the previous key is settled; commit it rather than letting a stray
         // move event on the old pointer rewrite it.
-        activeTouches.values.forEach { commit(it) }
+        activeTouches.values.forEach { commit(it); pressFades[it.key] = SystemClock.uptimeMillis() }
         cancelPanelLongPress()
         activeTouches.clear()
         cancelRepeat()
@@ -1213,6 +1260,7 @@ class FlickKeyboardView @JvmOverloads constructor(
 
     private fun onPointerUp(pointerId: Int, x: Float, y: Float) {
         val touch = activeTouches[pointerId] ?: return
+        pressFades[touch.key] = SystemClock.uptimeMillis()
         // 速いフリックは、指を離す直前の動きが届かないことがある。離した位置でも方向を決め直す
         if (!touch.firedOnPress) onPointerMove(pointerId, x, y)
         activeTouches.remove(pointerId)
@@ -1371,6 +1419,10 @@ class FlickKeyboardView @JvmOverloads constructor(
 
         /** ゲージの色（半透明の赤）。 */
         private val GAUGE_COLOR = android.graphics.Color.argb(150, 0xE5, 0x39, 0x35)
+
+        /** 押したときの色が出るまで／消えるまでの時間（ミリ秒）。 */
+        private const val PRESS_IN_MS = 70L
+        private const val PRESS_OUT_MS = 150L
 
         /** Filled arrow while shift is armed for one letter, underlined arrow while it is locked. */
         private const val SHIFT_ONCE_LABEL = "⬆"

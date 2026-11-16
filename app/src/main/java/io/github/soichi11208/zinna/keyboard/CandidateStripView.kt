@@ -88,6 +88,7 @@ class CandidateStripView(context: Context) : FrameLayout(context) {
             }
             invalidate()
             Anim.fadeIn(if (value) wrapped else collapsedView)
+            updateHandle()
             expandedListener?.onExpandedChanged(value)
         }
 
@@ -134,7 +135,10 @@ class CandidateStripView(context: Context) : FrameLayout(context) {
 
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
         super.onSizeChanged(w, h, oldw, oldh)
-        if (!expanded) twoRow.fixedRowHeight = h / 2
+        if (!expanded) {
+            twoRow.fixedRowHeight = h / 2
+            if (collapsedHeight != h) { collapsedHeight = h; post { updateHandle() } }
+        }
     }
 
     private val collapsedRow: ViewGroup get() = if (twoLines) twoRow else row
@@ -154,6 +158,8 @@ class CandidateStripView(context: Context) : FrameLayout(context) {
     private val pullSlop = 24f * resources.displayMetrics.density
 
     override fun onInterceptTouchEvent(ev: android.view.MotionEvent): Boolean {
+        // 引っぱって開く操作はやめた（誤操作のもと）。開け閉めは右端の ▽／△ で行う。
+        if (!PULL_TO_EXPAND) return false
         when (ev.actionMasked) {
             android.view.MotionEvent.ACTION_DOWN -> {
                 pullStartX = ev.x
@@ -197,10 +203,52 @@ class CandidateStripView(context: Context) : FrameLayout(context) {
 
     private var showingCandidates = false
 
+    // ------------------------------------------------------------ 右端の ▽／△ ハンドル
+    //
+    //  ┌──────────────────────────┬──┐
+    //  │ 候補1  候補2  候補3 …      │▽ │ ← 押すと一覧が開く
+    //  └──────────────────────────┴──┘
+    //  一覧を開いているときは △（押すと閉じる）
+
+    private val handleWidth = (44 * resources.displayMetrics.density).toInt()
+    private var collapsedHeight = 0
+
+    private val handle = TextView(context).apply {
+        gravity = Gravity.CENTER
+        isSingleLine = true
+        visibility = GONE
+        contentDescription = "候補の一覧"
+        setOnClickListener {
+            if (theme.hapticFeedback) it.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+            Anim.tap(it)
+            expanded = !expanded
+        }
+    }
+
+    private fun updateHandle() {
+        val show = showingCandidates || (expanded && handleOpenedList)
+        handle.visibility = if (show) VISIBLE else GONE
+        handle.text = if (expanded) "△" else "▽"
+        handle.setTextColor(theme.candidateTextColor)
+        handle.setTextSize(TypedValue.COMPLEX_UNIT_SP, theme.labelSizeSp)
+        val right = if (show) handleWidth else 0
+        for (v in listOf(oneLine, twoRow, wrapped)) {
+            if (v.paddingRight != right) v.setPadding(v.paddingLeft, v.paddingTop, right, v.paddingBottom)
+        }
+        (handle.layoutParams as? LayoutParams)?.let {
+            val h = if (collapsedHeight > 0) collapsedHeight else LayoutParams.MATCH_PARENT
+            if (it.height != h) { it.height = h; handle.layoutParams = it }
+        }
+    }
+
+    /** 一覧が候補のために開かれているか（クリップボードの一覧のときはハンドルを出さない）。 */
+    private val handleOpenedList: Boolean get() = showingCandidates
+
     init {
         // Transparent so the panel behind — colour or the user's background image — shows through.
         addView(oneLine, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
         addView(twoRow, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
+        addView(handle, LayoutParams(handleWidth, LayoutParams.MATCH_PARENT, Gravity.END or Gravity.TOP))
         addView(wrapped, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
     }
 
@@ -252,6 +300,7 @@ class CandidateStripView(context: Context) : FrameLayout(context) {
             focusedChild = focusedIndex
         }
         oneLine.scrollTo(0, 0)
+        updateHandle()
     }
 
     /**
@@ -299,6 +348,7 @@ class CandidateStripView(context: Context) : FrameLayout(context) {
             focusedChild = -1
         }
         oneLine.scrollTo(0, 0)
+        updateHandle()
     }
 
     /**
@@ -374,4 +424,9 @@ class CandidateStripView(context: Context) : FrameLayout(context) {
     }
 
     fun clear() = setCandidates(emptyList(), -1)
+
+    private companion object {
+        /** 候補バーを下に引っぱって一覧を開く操作（誤操作になるので無効）。 */
+        const val PULL_TO_EXPAND = false
+    }
 }

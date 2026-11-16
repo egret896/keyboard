@@ -58,6 +58,8 @@ def load_table(path: pathlib.Path) -> dict[str, str]:
 
 # (center, left, up, right, down) as mozc flick-hiragana table keys.
 # い/う/え/お sit left/up/right/down of あ, which is the standard Japanese flick arrangement.
+LITERAL_KANA = {"「", "」"}
+
 KANA_KEYS = {
     "a":    ("1", "_", ";", ":", "@"),
     "ka":   ("2", "a", "b", "c", "|"),
@@ -66,7 +68,7 @@ KANA_KEYS = {
     "na":   ("5", "j", "k", "l", "%"),
     "ha":   ("6", "m", "n", "o", "&"),
     "ma":   ("7", "p", "q", "r", "s"),
-    "ya":   ("8", "t", "u", "v", "^"),
+    "ya":   ("8", "「", "u", "」", "^"),
     "ra":   ("9", "w", "x", "y", "z"),
     "wa":   ("0", "+", "/", "-", "<"),
     "punc": ("#", ",", "?", "!", ">"),
@@ -120,6 +122,9 @@ def input_key(table: dict[str, str] | None, key: str | None) -> dict | None:
         return None
     if table is None:
         label = key
+    elif key in LITERAL_KANA:
+        # mozc の表にない文字は、そのまま入力中の文字に入る（「や」の左右＝「」）
+        return {"label": key, "action": {"type": "input", "text": key}}
     else:
         label = table.get(key)
         if not label:
@@ -159,7 +164,7 @@ def SPACE():
     key["down"] = {"label": "カナ", "action": {"type": "katakana"}}
     return key
 ENTER = lambda: action_key("↵", {"type": "enter"})
-# 記号・絵文字・顔文字パネルを開くキー（3段目の左）
+# 記号・絵文字・顔文字パネルを開くキー（左上）
 PANEL = lambda: action_key("☺記", {"type": "panel"}, style="MODIFIER")
 # あ → A → 1 → あ … と順番に切り替えるキー（4段目の左）
 CYCLE_LABEL = "あA1"
@@ -178,9 +183,11 @@ def build(layout_id: str, label: str, input_style: str, keys: list[dict],
     """
     k = keys
     rows = [
-        {"keys": [UNDO(), k[0], k[1], k[2], BACKSPACE()]},
+        # 左上は「☺記」（前は「↶ 戻す」だったが、使わないので外した）。
+        # 3段目の左（前の☺記の場所）は、記号・数字の画面へ直接行くキー。
+        {"keys": [PANEL(), k[0], k[1], k[2], BACKSPACE()]},
         {"keys": [CURSOR_LEFT(), k[3], k[4], k[5], CURSOR_RIGHT()]},
-        {"keys": [PANEL(), k[6], k[7], k[8], SPACE()]},
+        {"keys": [symbol_switch, k[6], k[7], k[8], SPACE()]},
         {"keys": [cycle_switch, k[9], k[10], k[11], ENTER()]},
     ]
     return {"id": layout_id, "label": label, "inputStyle": input_style, "rows": rows}
@@ -235,6 +242,8 @@ def build_symbol(table: dict[str, str]) -> dict:
                    switch(KANA_LABEL, KANA_ID), switch(CYCLE_LABEL, KANA_ID))
     # 1段目の左は、記号の2ページ目（flick_symbol2）への切り替え
     layout["rows"][0]["keys"][0] = switch("!?#", "flick_symbol2")
+    # 3段目の左は「☺記」のまま（数字の画面では左上が !?# なので）
+    layout["rows"][2]["keys"][0] = PANEL()
     return layout
 
 

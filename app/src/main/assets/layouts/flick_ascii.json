@@ -8,9 +8,9 @@
         {
           "weight": 1.0,
           "center": {
-            "label": "↶",
+            "label": "☺記",
             "action": {
-              "type": "undo"
+              "type": "panel"
             }
           },
           "style": "MODIFIER"
@@ -271,9 +271,10 @@
         {
           "weight": 1.0,
           "center": {
-            "label": "☺記",
+            "label": "数字",
             "action": {
-              "type": "panel"
+              "type": "layout",
+              "layoutId": "flick_symbol"
             }
           },
           "style": "MODIFIER"
