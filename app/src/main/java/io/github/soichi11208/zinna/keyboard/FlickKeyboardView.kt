@@ -440,7 +440,7 @@ class FlickKeyboardView @JvmOverloads constructor(
 
     /** フローズンのときは、使う人の調整にかかわらず「四角・ゆがみなし・強いくもり・影なし」。 */
     private fun effectiveLensParams(): Lens.Params =
-        if (frozen) Lens.Params(refract = 0f, frost = 1f, light = 1f, shadow = 0f, square = true) else lensParams
+        if (frozen) Lens.Params(refract = 0.6f, frost = 0.4f, light = 1f, shadow = 0f, square = true) else lensParams
 
     /** ミニマリスト（罫線だけ）で描くか。リキッドグラスより優先しない（glass が true なら glass）。 */
     var minimal: Boolean = false
@@ -642,6 +642,8 @@ class FlickKeyboardView @JvmOverloads constructor(
 
         val b = if (frozen) tileOf(placed) else placed.bounds
         glassRect.set(b)
+        // フローズン：押すと少し沈む（小さくなる）
+        if (frozen && strength > 0f) glassRect.inset(1.5f * d * strength, 1.5f * d * strength)
         if (strength > 0f && !frozen) {
             // ふくらみ（最大 3dp）と、指の方への伸び（最大 9dp）
             val swell = 3f * d * strength

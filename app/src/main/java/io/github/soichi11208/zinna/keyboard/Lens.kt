@@ -211,22 +211,55 @@ internal object Lens {
             var cb = blue[i] * (1f - scatter) + scatterB * scatter
             cr += (tintR - cr) * tint; cg += (tintG - cg) * tint; cb += (tintB - cb) * tint
             if (params.square) {
-                // ---- フローズン：ぼやけた光は使わず、くっきりした1ピクセルの溝と、すりガラスのざらつき
+                // ---- フローズン：水面に張った、少し厚い氷の板
+                //   ┌─────────────┐  ← 上と左の面（氷の厚み）が明るい
+                //   │  すき通った氷  │  ← 背景が少しゆがんで見え、うっすら白い曇りと小さな泡・ひび
+                //   └─────────────┘  ← 下と右の面が暗い
+                //  押すと：明暗が逆になり、全体が少し暗く青く＝水に沈んだように見える
                 val tx = x - m; val ty = y - m
-                // 上がほんの少し明るい（上から光が当たる板ガラス）
-                val v = (ty.toFloat() / h).coerceIn(0f, 1f)
-                val sheen = 0.10f * (1f - v) * (1f - v) + 0.05f * press
-                cr += (255f - cr) * sheen; cg += (255f - cg) * sheen; cb += (255f - cb) * sheen
-                // すりガラスのざらつき（細かい点の明るさのばらつき。キーごとに模様が変わらないよう位置だけで決める）
-                var hsh = (x + left.toInt()) * 73856093 xor (y + top.toInt()) * 19349663
-                hsh = hsh xor (hsh ushr 13); hsh *= 0x5bd1e995; hsh = hsh xor (hsh ushr 15)
-                val grain = ((hsh and 0xff) - 128) / 128f * 5f
-                cr += grain; cg += grain; cb += grain
-                // 溝：左と上の1ピクセルは明るく、右と下の1ピクセルは暗く（となりのタイルと合わせて「溝」に見える）
-                val lightEdge = tx < 1 || ty < 1
-                val darkEdge = tx >= w - 1 || ty >= h - 1
-                if (darkEdge) { cr *= 0.78f; cg *= 0.78f; cb *= 0.78f }
-                else if (lightEdge) { cr += (255f - cr) * 0.40f * light; cg += (255f - cg) * 0.40f * light; cb += (255f - cb) * 0.40f * light }
+                val seed = hash(left.toInt(), top.toInt(), 5).times(10000f).toInt()
+                val lxp = tx.toFloat(); val lyp = ty.toFloat()
+                // 冷たい色：色味を少しぬいて、氷の水色を混ぜる
+                val gray = 0.299f * cr + 0.587f * cg + 0.114f * cb
+                cr = (cr * 0.65f + gray * 0.35f) * 0.70f + 190f * 0.30f
+                cg = (cg * 0.65f + gray * 0.35f) * 0.70f + 225f * 0.30f
+                cb = (cb * 0.65f + gray * 0.35f) * 0.70f + 240f * 0.30f
+                // 氷の中の白い曇り（大きくゆるやかなむら）
+                val cloud = (fbm(lxp, lyp, 50f * density, seed) - 0.45f).coerceIn(0f, 1f) * 0.45f
+                cr += (250f - cr) * cloud; cg += (252f - cg) * cloud; cb += (255f - cb) * cloud
+                // 細いひび（ノイズの「尾根」だけを細い線にする）
+                val ridge = 1f - abs(2f * fbm(lxp, lyp, 90f * density, seed + 1) - 1f)
+                if (ridge > 0.975f) { val k = (ridge - 0.975f) / 0.025f * 0.30f; cr += (255f - cr) * k; cg += (255f - cg) * k; cb += (255f - cb) * k }
+                // 小さな泡（明るい輪）
+                val cell = 7f * density
+                val cxI = kotlin.math.floor(lxp / cell).toInt(); val cyI = kotlin.math.floor(lyp / cell).toInt()
+                if (hash(cxI, cyI, seed + 2) > 0.975f) {
+                    val bx2 = (cxI + 0.5f) * cell; val by2 = (cyI + 0.5f) * cell
+                    val br = (0.8f + 0.8f * hash(cxI, cyI, seed + 3)) * density
+                    val dd = abs(hypot(lxp - bx2, lyp - by2) - br)
+                    if (dd < 0.9f) { val k = (1f - dd / 0.9f) * 0.55f; cr += (255f - cr) * k; cg += (255f - cg) * k; cb += (255f - cb) * k }
+                }
+                // 沈み：押すほど暗く青く（水をかぶる）
+                val sink = press
+                cr *= 1f - 0.10f * sink; cg *= 1f - 0.06f * sink; cb *= 1f - 0.02f * sink
+                // 厚み（面取りした縁）：上・左・右・下で明るさを変える。押すと逆になる
+                val cw = 4f * density
+                val dl = lxp; val dt = lyp; val dr = (w - 1 - tx).toFloat(); val db = (h - 1 - ty).toFloat()
+                val dmin = min(min(dl, dr), min(dt, db))
+                if (dmin < cw) {
+                    val faceLight = when (dmin) {
+                        dt -> 0.32f
+                        dl -> 0.18f
+                        dr -> -0.18f
+                        else -> -0.28f
+                    } * light * (1f - 2f * sink)
+                    val edgeAA = (cw - dmin).coerceIn(0f, 1f)          // 面の内側の境目をなめらかに
+                    val k = faceLight * edgeAA
+                    if (k > 0f) { cr += (255f - cr) * k; cg += (255f - cg) * k; cb += (255f - cb) * k }
+                    else { cr *= 1f + k; cg *= 1f + k; cb *= 1f + k }
+                    // 一番外側の1ピクセル：左上にくっきりした光
+                    if (dmin < 1f && (dmin == dt || dmin == dl) && sink < 0.5f) { cr += (255f - cr) * 0.5f; cg += (255f - cg) * 0.5f; cb += (255f - cb) * 0.5f }
+                }
                 out[i] = (0xff shl 24) or (cr.coerceIn(0f, 255f).toInt() shl 16) or (cg.coerceIn(0f, 255f).toInt() shl 8) or cb.coerceIn(0f, 255f).toInt()
                 continue
             }
@@ -253,6 +286,31 @@ internal object Lens {
             out[i] = ((a * 255).toInt().coerceIn(0, 255) shl 24) or (fr.toInt() shl 16) or (fg.toInt() shl 8) or fb.toInt()
         }
         return Pixels(out, bw, bh, m)
+    }
+
+    /** 位置から決まる 0〜1 の乱数（毎回同じ値になる）。 */
+    private fun hash(ix: Int, iy: Int, seed: Int): Float {
+        var n = ix * 374761393 + iy * 668265263 + seed * 144665
+        n = (n xor (n ushr 13)) * 1274126177
+        return ((n xor (n ushr 16)) and 0xffff) / 65535f
+    }
+
+    /** なめらかなノイズ（格子の点の乱数を、なめらかにつなぐ）。 */
+    private fun vnoise(x: Float, y: Float, scale: Float, seed: Int): Float {
+        val fx = x / scale; val fy = y / scale
+        val ix = kotlin.math.floor(fx).toInt(); val iy = kotlin.math.floor(fy).toInt()
+        var tx = fx - ix; var ty = fy - iy
+        tx = tx * tx * (3f - 2f * tx); ty = ty * ty * (3f - 2f * ty)
+        val a = hash(ix, iy, seed); val b = hash(ix + 1, iy, seed)
+        val c = hash(ix, iy + 1, seed); val d = hash(ix + 1, iy + 1, seed)
+        return (a * (1f - tx) + b * tx) * (1f - ty) + (c * (1f - tx) + d * tx) * ty
+    }
+
+    /** 大きさの違うノイズを5つ重ねた、ふわふわした模様（霜の広がり方）。 */
+    private fun fbm(x: Float, y: Float, scale: Float, seed: Int = 0): Float {
+        var v = 0f; var amp = 0.5f; var sc = scale
+        for (o in 0 until 5) { v += amp * vnoise(x, y, sc, seed + o); amp *= 0.5f; sc *= 0.5f }
+        return v
     }
 
     private class Box(val left: Float, val top: Float, val right: Float, val bottom: Float)

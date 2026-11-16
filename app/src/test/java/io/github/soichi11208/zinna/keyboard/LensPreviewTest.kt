@@ -34,7 +34,7 @@ class LensPreviewTest {
             val top = if (frozen) row * (h / 4f) + seam else 13 + row * kh + 6 * d
             val kwi = if (frozen) kw - 2 * seam else kw - 12 * d
             val khi = if (frozen) h / 4f - 2 * seam else kh - 12 * d
-            val params = if (frozen) Lens.Params(refract = 0f, frost = 1f, light = 1f, shadow = 0f, square = true) else Lens.Params()
+            val params = if (frozen) Lens.Params(refract = 0.6f, frost = 0.4f, light = 1f, shadow = 0f, square = true) else Lens.Params()
             val p = Lens.renderPixels(bg, w, h, left, top, kwi, khi, d, true, press, params)!!
             val ox = (left - p.margin).toInt(); val oy = (top - p.margin).toInt()
             for (y in 0 until p.height) for (x in 0 until p.width) {
