@@ -336,7 +336,24 @@ private fun UserDictionaryCard() {
     val context = LocalContext.current
     // Recomputed on every composition rather than remembered: returning from the editor
     // recomposes this screen, and a cached count would show the pre-edit number.
-    val count = UserDictionary(context).entries().size
+    var count by remember { mutableStateOf(UserDictionary(context).entries().size) }
+    var importMessage by remember { mutableStateOf<String?>(null) }
+    val pickFile = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        val text = runCatching {
+            context.contentResolver.openInputStream(uri)?.use { DictionaryFile.read(it.readBytes()) }
+        }.getOrNull()
+        importMessage = if (text == null) {
+            "ファイルを読めませんでした"
+        } else {
+            val added = UserDictionary(context).importFrom(text)
+            count = UserDictionary(context).entries().size
+            if (added == 0) "新しく足せる単語はありませんでした（形式が違うか、全部登録済みです）"
+            else "$added 語を読み込みました"
+        }
+    }
 
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -351,6 +368,15 @@ private fun UserDictionaryCard() {
                 },
                 modifier = Modifier.fillMaxWidth(),
             ) { Text("単語を編集") }
+            OutlinedButton(
+                onClick = { pickFile.launch(arrayOf("text/*", "application/zip", "application/octet-stream")) },
+                modifier = Modifier.fillMaxWidth(),
+            ) { Text("ファイルから読み込む") }
+            Text(
+                "ほかのキーボード（Gboard・Google日本語入力・ATOK など）で書き出した辞書ファイルを読み込めます",
+                style = MaterialTheme.typography.bodySmall,
+            )
+            importMessage?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
         }
     }
 }

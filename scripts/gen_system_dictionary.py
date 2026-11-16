@@ -29,7 +29,8 @@ NOUN_ID = 1851
 # proper nouns take こうしょう from 交渉.
 COST = {
     "dic-nico-intersection-pixiv.txt": 8000,
-    "katakana-english.txt": 8000,
+    # ひらがなで打った英語（あっぷる → Apple）を候補の上の方に出すため、少し強めにする。
+    "katakana-english.txt": 7000,
     "jawiki.txt": 12000,
 }
 

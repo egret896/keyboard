@@ -58,6 +58,41 @@ class UserDictionary(context: Context) {
         SecureStore.write(file, tsv)
     }
 
+    /**
+     * ほかのキーボードが書き出した辞書ファイルの中身を、今の辞書に足す。足した語数を返す。
+     *
+     * 読める形（1行に1語、タブ区切り）:
+     *   Google日本語入力・Mozc : よみ ⇥ 単語 ⇥ 品詞 ⇥ コメント
+     *   Gboard                : よみ ⇥ 単語 ⇥ ja-JP
+     *   ATOK・MS-IME など      : よみ ⇥ 単語 ⇥ 品詞
+     * 「#」や「!」で始まる行（説明行）は飛ばす。同じ「よみ＋単語」がすでにあれば足さない。
+     */
+    fun importFrom(text: String): Int {
+        val current = entries()
+        val known = current.map { it.reading to it.word }.toHashSet()
+        val added = mutableListOf<Entry>()
+        for (raw in text.lines()) {
+            val line = raw.trimEnd('\r')
+            if (line.isBlank() || line.startsWith("#") || line.startsWith("!")) continue
+            val f = line.split('\t')
+            if (f.size < 2) continue
+            val reading = f[0].trim()
+            val word = f[1].trim()
+            if (reading.isEmpty() || word.isEmpty()) continue
+            val posField = f.getOrNull(2)?.trim().orEmpty()
+            // Gboard は3列目が品詞ではなく言語（ja-JP）。品詞が分からないものは名詞にする。
+            val pos = if (posField.isEmpty() || posField.matches(Regex("[A-Za-z]{2}(-[A-Za-z]{2})?"))) {
+                DEFAULT_POS
+            } else {
+                posField
+            }
+            val entry = Entry(reading, word, pos, f.getOrNull(3)?.trim().orEmpty()).sanitized() ?: continue
+            if (known.add(entry.reading to entry.word)) added += entry
+        }
+        if (added.isNotEmpty()) write(current + added)
+        return added.size
+    }
+
     /** Appends [entry], or replaces the one at [replacing] when editing. */
     fun save(entry: Entry, replacing: Entry? = null): List<Entry> {
         val sanitized = entry.sanitized() ?: return entries()

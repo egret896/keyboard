@@ -103,6 +103,25 @@ class FlickKeyboardView @JvmOverloads constructor(
     /** ゲージが満タンになったときに呼ばれる（全削除）。 */
     var clearAllListener: (() -> Unit)? = null
 
+    /** 「☺記」を長押ししたときに呼ばれる（メニューを開く）。 */
+    var panelLongPressListener: (() -> Unit)? = null
+
+    private var longPressTouch: Touch? = null
+    private val longPressRunnable = Runnable {
+        val touch = longPressTouch ?: return@Runnable
+        longPressTouch = null
+        touch.firedOnPress = true // 指を離しても普通のタップとして扱わない
+        performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
+        activeTouches.values.remove(touch)
+        invalidate()
+        panelLongPressListener?.invoke()
+    }
+
+    private fun cancelPanelLongPress() {
+        longPressTouch = null
+        handler.removeCallbacks(longPressRunnable)
+    }
+
     /** ゲージを表示中の ⌫ キー。null ならゲージなし。 */
     private var gaugeKey: PlacedKey? = null
     private var gaugeStartedAt = 0L
@@ -211,7 +230,59 @@ class FlickKeyboardView @JvmOverloads constructor(
         }
     }
 
+    // ------------------------------------------------------------ 片手モード
+    //
+    //   右手モード                    左手モード
+    //   ┌───┬────────────┐        ┌────────────┬───┐
+    //   │ ⇄ │  キーボード │        │  キーボード │ ⇄ │
+    //   │ ⤢ │  （少し狭く）│        │  （少し狭く）│ ⤢ │
+    //   └───┴────────────┘        └────────────┴───┘
+    //   ⇄ = 反対側へ寄せる   ⤢ = 片手モードをやめる
+
+    /** 0 = ふつう、-1 = 左に寄せる、1 = 右に寄せる。 */
+    var oneHand: Int = 0
+        set(value) {
+            field = value
+            refreshPlacement()
+            invalidate()
+        }
+
+    /** ⇄（action=1）や ⤢（action=0）が押されたときに呼ばれる。 */
+    var oneHandListener: ((Int) -> Unit)? = null
+
+    private val asideSwap = RectF()
+    private val asideExit = RectF()
+
+    private fun keyboardArea(width: Float): Pair<Float, Float> {
+        if (oneHand == 0) return 0f to width
+        val kw = width * ONE_HAND_RATIO
+        return if (oneHand < 0) 0f to kw else (width - kw) to kw
+    }
+
+    private fun layoutAside(width: Float, height: Float) {
+        if (oneHand == 0) { asideSwap.setEmpty(); asideExit.setEmpty(); return }
+        val (x0, kw) = keyboardArea(width)
+        val left = if (oneHand < 0) x0 + kw else 0f
+        val right = left + (width - kw)
+        asideSwap.set(left, 0f, right, height / 2f)
+        asideExit.set(left, height / 2f, right, height)
+    }
+
+    private fun drawAside(canvas: Canvas) {
+        if (oneHand == 0) return
+        for ((rect, label) in listOf(asideSwap to "⇄", asideExit to "⤢")) {
+            val baseline = rect.centerY() - (labelPaint.descent() + labelPaint.ascent()) / 2f
+            canvas.drawText(label, rect.centerX(), baseline, labelPaint)
+        }
+    }
+
     private fun computePlacement(width: Float, height: Float): List<PlacedKey> {
+        layoutAside(width, height)
+        val (originX, areaWidth) = keyboardArea(width)
+        return computePlacementIn(originX, areaWidth, height)
+    }
+
+    private fun computePlacementIn(originX: Float, width: Float, height: Float): List<PlacedKey> {
         val current = layout ?: return emptyList()
         val totalRowWeight = current.rows.sumOf { it.weight.toDouble() }.toFloat()
         val gap = theme.keyGapDp * resources.displayMetrics.density
@@ -220,7 +291,7 @@ class FlickKeyboardView @JvmOverloads constructor(
         for (row in current.rows) {
             val rowHeight = height * (row.weight / totalRowWeight)
             val rowWeight = row.totalWeight
-            var x = width * (row.padStart / rowWeight)
+            var x = originX + width * (row.padStart / rowWeight)
             for (key in row.keys) {
                 val keyWidth = width * (key.weight / rowWeight)
                 placed += PlacedKey(
@@ -238,6 +309,7 @@ class FlickKeyboardView @JvmOverloads constructor(
         super.onDraw(canvas)
         val radius = theme.keyCornerRadiusDp * resources.displayMetrics.density
 
+        drawAside(canvas)
         val waveT = waveProgress()
         for (placed in placedKeys) {
             val bump = if (waveT >= 0f) waveBump(placed, waveT) else 0f
@@ -489,6 +561,7 @@ class FlickKeyboardView @JvmOverloads constructor(
             }
 
             MotionEvent.ACTION_CANCEL -> {
+                cancelPanelLongPress()
                 cancelRepeat()
                 cancelGauge()
                 activeTouches.clear()
@@ -499,10 +572,15 @@ class FlickKeyboardView @JvmOverloads constructor(
     }
 
     private fun onPointerDown(pointerId: Int, x: Float, y: Float) {
+        if (oneHand != 0) {
+            if (asideSwap.contains(x, y)) { oneHandListener?.invoke(1); return }
+            if (asideExit.contains(x, y)) { oneHandListener?.invoke(0); return }
+        }
         val key = placedKeys.firstOrNull { it.bounds.contains(x, y) } ?: return
         // A new finger means the previous key is settled; commit it rather than letting a stray
         // move event on the old pointer rewrite it.
         activeTouches.values.forEach { commit(it) }
+        cancelPanelLongPress()
         activeTouches.clear()
         cancelRepeat()
         cancelGauge()
@@ -511,6 +589,10 @@ class FlickKeyboardView @JvmOverloads constructor(
         activeTouches[pointerId] = touch
         if (theme.hapticFeedback) performHapticFeedback(android.view.HapticFeedbackConstants.KEYBOARD_TAP)
 
+        if (key.spec.center.action is KeyAction.OpenPanel && panelLongPressListener != null) {
+            longPressTouch = touch
+            handler.postDelayed(longPressRunnable, LONG_PRESS_MS)
+        }
         if (key.spec.repeatable) {
             // Repeatable keys fire on press, not on release. Backspace has to delete the moment it
             // is touched, and firing again on release would delete one extra character after every
@@ -554,6 +636,7 @@ class FlickKeyboardView @JvmOverloads constructor(
 
     private fun onPointerUp(pointerId: Int) {
         val touch = activeTouches.remove(pointerId) ?: return
+        cancelPanelLongPress()
         cancelRepeat()
         cancelGauge()
         commit(touch)
@@ -664,6 +747,12 @@ class FlickKeyboardView @JvmOverloads constructor(
 
         /** 左へずらしてからゲージがたまり始めるまで。 */
         private const val GAUGE_DELAY_MS = 150L
+
+        /** 片手モードのときのキーボードの幅（画面幅に対する割合）。 */
+        private const val ONE_HAND_RATIO = 0.8f
+
+        /** 長押しと判定するまでの時間。 */
+        private const val LONG_PRESS_MS = 450L
 
         /** 全消しの波の長さと、浮く高さ。 */
         private const val WAVE_MS = 650f

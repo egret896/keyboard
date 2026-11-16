@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 片手モード：画面の枠の中で、キーボードが片側に寄っている絵。白で描き、文字色に染める。 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="1.6"
+        android:pathData="M3.5,5.5h17a1,1 0,0 1,1 1v11a1,1 0,0 1,-1 1h-17a1,1 0,0 1,-1 -1v-11a1,1 0,0 1,1 -1z" />
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M9,8h2.5v2.5H9zM12.5,8H15v2.5h-2.5zM16,8h2.5v2.5H16zM9,11.5h2.5V14H9zM12.5,11.5H15V14h-2.5zM16,11.5h2.5V14H16zM9,15h9.5v1.5H9z" />
+    <path
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="1.4"
+        android:strokeLineCap="round"
+        android:pathData="M7,12H4.5M5.8,10.6L4.5,12l1.3,1.4" />
+</vector>

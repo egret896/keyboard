@@ -91,6 +91,18 @@ class ImeSettings(context: Context) {
             bumpRevision()
         }
 
+    /** 片手モード。0 = ふつう、-1 = 左に寄せる、1 = 右に寄せる。 */
+    var oneHandMode: Int
+        get() = prefs.getInt(KEY_ONE_HAND, 0)
+        set(value) {
+            prefs.edit().putInt(KEY_ONE_HAND, value).apply()
+            if (value != 0) prefs.edit().putInt(KEY_ONE_HAND_SIDE, value).apply()
+        }
+
+    /** 最後に使った片手モードの向き（次にONにしたときにこちらへ寄せる）。 */
+    val oneHandLastSide: Int
+        get() = prefs.getInt(KEY_ONE_HAND_SIDE, 1)
+
     /** 全削除ゲージが満タンになるまでの時間（ミリ秒）。 */
     var clearChargeMs: Long
         get() = prefs.getLong(KEY_CLEAR_CHARGE, 1000L)
@@ -219,6 +231,8 @@ class ImeSettings(context: Context) {
         private const val KEY_HOLD_TO_CLEAR = "hold_to_clear"
         private const val KEY_AUTO_BRACKET = "auto_bracket"
         private const val KEY_CLEAR_CHARGE = "clear_charge_ms"
+        private const val KEY_ONE_HAND = "one_hand_mode"
+        private const val KEY_ONE_HAND_SIDE = "one_hand_side"
         const val DEFAULT_FLICK_THRESHOLD_DP = 24f
         const val MIN_FLICK_THRESHOLD_DP = 10f
         const val MAX_FLICK_THRESHOLD_DP = 48f

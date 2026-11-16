@@ -37,6 +37,10 @@ import io.github.soichi11208.zinna.keyboard.SymbolPanelView
 import io.github.soichi11208.zinna.keyboard.Anim
 import io.github.soichi11208.zinna.keyboard.LayoutRepository
 import io.github.soichi11208.zinna.settings.ImeSettings
+import io.github.soichi11208.zinna.settings.SettingsActivity
+import io.github.soichi11208.zinna.settings.UserDictionaryActivity
+import io.github.soichi11208.zinna.keyboard.KeyboardMenuView
+import android.content.Intent
 import io.github.soichi11208.zinna.theme.KeyboardTheme
 import io.github.soichi11208.zinna.theme.MaterialYouTheme
 import org.mozc.android.inputmethod.japanese.protobuf.ProtoCommands.Context as MozcContext
@@ -238,6 +242,11 @@ class ZinnaImeService : InputMethodService() {
             flickThresholdDp = settings.flickThresholdDp
             holdToClear = settings.holdToClear
             gaugeFillMs = settings.clearChargeMs
+            oneHand = effectiveOneHand()
+            oneHandListener = { action ->
+                setOneHand(if (action == 0) 0 else -settings.oneHandMode)
+            }
+            panelLongPressListener = ::openKeyboardMenu
             clearAllListener = ::clearAll
         }
 
@@ -255,6 +264,7 @@ class ZinnaImeService : InputMethodService() {
 
         panelRoot = root
         symbolPanel = null
+        keyboardMenu = null
         candidateView = candidates
         stripContent = StripContent.IDLE_ACTIONS
         keyboardView = keyboard
@@ -298,6 +308,7 @@ class ZinnaImeService : InputMethodService() {
         clipboard.record(clipboardManager)
         showIdleActions()
         closeSymbolPanel()
+        closeKeyboardMenu()
     }
 
     /**
@@ -908,11 +919,15 @@ class ZinnaImeService : InputMethodService() {
     private fun showIdleActions() {
         stripContent = StripContent.IDLE_ACTIONS
         val view = candidateView ?: return
+        view.expanded = false
         val actions = mutableListOf<CandidateStripView.Action>()
         if (clipboard.items().isNotEmpty()) {
             actions += CandidateStripView.Action("", R.drawable.ic_clipboard, CLIPBOARD_LABEL) { showClipboard() }
         }
         actions += CandidateStripView.Action("", R.drawable.ic_undo, UNDO_LABEL) { render(session.undo()) }
+        actions += CandidateStripView.Action("", R.drawable.ic_one_hand, ONE_HAND_LABEL) {
+            setOneHand(if (settings.oneHandMode == 0) settings.oneHandLastSide else 0)
+        }
         // 鍵が閉じている＝プライベート中、開いている＝ふつう。
         actions += if (settings.privateMode) {
             CandidateStripView.Action("", R.drawable.ic_lock, PRIVATE_ON_LABEL) { togglePrivateMode() }
@@ -942,6 +957,8 @@ class ZinnaImeService : InputMethodService() {
             }
         }
         view.setActions(actions)
+        // 押したらすぐ一覧で開く（下に引っぱらなくても選べるように）。
+        view.expanded = true
     }
 
     // ---------------------------------------------------------------- 記号・絵文字パネル
@@ -1004,6 +1021,92 @@ class ZinnaImeService : InputMethodService() {
         showIdleActions()
     }
 
+    // ---------------------------------------------------------------- 片手モード
+
+    /** 左右分割になっている（Fold を開いている）ときは、片手モードは使わない。 */
+    private fun isSplitActive(): Boolean =
+        settings.splitWhenWide && resources.configuration.screenWidthDp >= SPLIT_MIN_WIDTH_DP
+
+    private fun effectiveOneHand(): Int = if (isSplitActive()) 0 else settings.oneHandMode
+
+    /** 0 = ふつう、-1 = 左寄せ、1 = 右寄せ。 */
+    private fun setOneHand(mode: Int) {
+        settings.oneHandMode = mode
+        keyboardView?.let {
+            it.oneHand = effectiveOneHand()
+            Anim.fadeIn(it, from = 0.85f, durationMs = 160L)
+        }
+    }
+
+    // ---------------------------------------------------------------- 長押しメニュー
+
+    private var keyboardMenu: KeyboardMenuView? = null
+
+    /** 「☺記」長押しで、キーボードの場所にメニューを出す。 */
+    private fun openKeyboardMenu() {
+        val root = panelRoot ?: return
+        val keyboard = keyboardView ?: return
+        if (isComposing) render(session.submit())
+        val menu = keyboardMenu ?: KeyboardMenuView(this, theme).also {
+            root.addView(it, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, keyboard.height))
+            keyboardMenu = it
+        }
+        (menu.layoutParams as? LinearLayout.LayoutParams)?.let {
+            it.height = keyboard.height
+            menu.layoutParams = it
+        }
+        menu.setItems(listOf(
+            listOf(
+                KeyboardMenuView.Item({ "アプリ設定" }) {
+                    closeKeyboardMenu()
+                    startActivity(Intent(this, SettingsActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                },
+                KeyboardMenuView.Item({ "単語登録" }) {
+                    closeKeyboardMenu()
+                    startActivity(Intent(this, UserDictionaryActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                },
+                KeyboardMenuView.Item({
+                    when (settings.oneHandMode) { -1 -> "片手：左"; 1 -> "片手：右"; else -> "片手：オフ" }
+                }) {
+                    // オフ → 右 → 左 → オフ … と切り替える
+                    setOneHand(when (settings.oneHandMode) { 0 -> 1; 1 -> -1; else -> 0 })
+                },
+            ),
+            listOf(
+                KeyboardMenuView.Item({ "高さ −" }) { changeKeyHeight(-0.05f) },
+                KeyboardMenuView.Item({ "高さ ＋" }) { changeKeyHeight(+0.05f) },
+                KeyboardMenuView.Item({ if (settings.splitWhenWide) "左右分割：オン" else "左右分割：オフ" }) {
+                    settings.splitWhenWide = !settings.splitWhenWide
+                    rebuildKeepingMenu()
+                },
+            ),
+            listOf(KeyboardMenuView.Item({ "閉じる" }) { closeKeyboardMenu() }),
+        ))
+        symbolPanel?.visibility = View.GONE
+        keyboard.visibility = View.GONE
+        menu.visibility = View.VISIBLE
+        Anim.fadeIn(menu)
+    }
+
+    private fun closeKeyboardMenu() {
+        keyboardMenu?.visibility = View.GONE
+        keyboardView?.let { if (it.visibility != View.VISIBLE) { it.visibility = View.VISIBLE; Anim.fadeIn(it) } }
+    }
+
+    private fun changeKeyHeight(delta: Float) {
+        val next = (settings.keyHeightScale + delta)
+            .coerceIn(ImeSettings.MIN_KEY_HEIGHT_SCALE, ImeSettings.MAX_KEY_HEIGHT_SCALE)
+        settings.keyHeightScale = next
+        rebuildKeepingMenu()
+    }
+
+    /** 設定を変えたあと、キーボードを作り直してメニューを開いたままにする。 */
+    private fun rebuildKeepingMenu() {
+        keyboardMenu = null
+        setInputView(onCreateInputView())
+        panelRoot?.post { openKeyboardMenu() }
+    }
+
     // ---------------------------------------------------------------- 左右分割（Fold 展開時）
 
     /** 横幅が広いとき（Fold を開いたとき）だけ、左右分割の配置に変える。 */
@@ -1050,6 +1153,7 @@ class ZinnaImeService : InputMethodService() {
         private const val FULL_WIDTH_SPACE = "　"
 
         private const val CLIPBOARD_LABEL = "クリップボード"
+        private const val ONE_HAND_LABEL = "片手モード"
         private const val UNDO_LABEL = "元に戻す"
         private const val BACK_LABEL = "✕"
         private const val PRIVATE_OFF_LABEL = "プライベートモード：オフ"
