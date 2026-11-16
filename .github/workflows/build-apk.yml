@@ -1,0 +1,89 @@
+# GitHub が自動で APK を組み立てる設定。
+#   main にプッシュ → mozc（漢字変換）をビルド → APK を作る → 「Releases」に置く
+name: APKを作る
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-apk
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    env:
+      NDK_VERSION: 27.2.12479018
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: ディスクの空きを増やす
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/node_modules /opt/ghc /usr/local/.ghcup /usr/share/swift /usr/local/share/powershell
+          df -h /
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Android NDK を入れる
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;${NDK_VERSION}" "platforms;android-35" "build-tools;35.0.0" > /dev/null
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/${NDK_VERSION}" >> "$GITHUB_ENV"
+
+      - name: bazel のキャッシュ
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/bazel
+          key: bazel-${{ hashFiles('scripts/build_mozc.sh', 'patches/**') }}
+          restore-keys: bazel-
+
+      - name: 辞書を取ってくる
+        run: ./scripts/fetch_dictionaries.sh
+
+      - name: mozc（漢字変換エンジン）をビルド
+        run: |
+          export BAZEL="$(command -v bazelisk || command -v bazel)"
+          ./scripts/build_mozc.sh
+
+      - name: キー配置を作る
+        run: |
+          python3 scripts/gen_flick_layout.py
+          python3 scripts/gen_qwerty_layout.py
+
+      - name: APK をビルド
+        run: |
+          mkdir -p ~/.android
+          cp signing/debug.keystore ~/.android/debug.keystore
+          echo "sdk.dir=$ANDROID_HOME" > local.properties
+          ./gradlew :app:assembleDebug --no-daemon
+          mkdir -p dist
+          cp app/build/outputs/apk/debug/*.apk dist/my-keyboard.apk
+          ls -la dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: my-keyboard-apk
+          path: dist/my-keyboard.apk
+
+      - name: Releases に置く（スマホからダウンロードできる場所）
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete latest --yes --cleanup-tag || true
+          gh release create latest dist/my-keyboard.apk \
+            --title "最新版 ($(date -u +%Y-%m-%d))" \
+            --notes "この my-keyboard.apk をスマホでダウンロードしてインストールしてください。" \
+            --target "${GITHUB_SHA}"

@@ -1,0 +1,39 @@
+# Build output
+/build/
+**/build/
+.gradle/
+local.properties
+.cxx/
+
+# Vendored / generated
+/tools/
+/third_party/mozc/
+/third_party/bazel-dist/
+/third_party/bazel-*-dist.zip
+!/patches/
+/mozc/src/main/jniLibs/
+/mozc/src/main/assets/mozc.data
+
+# Release signing. The key can never be replaced once anything is published under it, so it lives
+# outside the repository entirely and keystore.properties only points at it.
+keystore.properties
+*.jks
+*.keystore
+!/signing/debug.keystore
+
+# IDE
+.idea/
+*.iml
+/mozc/src/main/assets/dictionaries/
+
+# Kotlin compiler session files
+.kotlin/
+
+
+# Built APKs handed over for testing
+/dist/
+/third_party/zenzai-llama/
+/app/src/zenzai/
+
+# Dictionary sources for the system dictionary build
+/third_party/dictionaries/

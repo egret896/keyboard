@@ -1,0 +1,508 @@
+{
+  "id": "flick_symbol2",
+  "label": "記号 2",
+  "inputStyle": "TOGGLE_FLICK_NUMBER",
+  "rows": [
+    {
+      "keys": [
+        {
+          "weight": 1.0,
+          "center": {
+            "label": "123",
+            "action": {
+              "type": "layout",
+              "layoutId": "flick_symbol"
+            }
+          },
+          "style": "MODIFIER"
+        },
+        {
+          "weight": 1.0,
+          "center": {
+            "label": "、",
+            "action": {
+              "type": "symbol",
+              "text": "、"
+            }
+          },
+          "style": "CHARACTER",
+          "left": {
+            "label": "。",
+            "action": {
+              "type": "symbol",
+              "text": "。"
+            }
+          },
+          "up": {
+            "label": "！",
+            "action": {
+              "type": "symbol",
+              "text": "！"
+            }
+          },
+          "right": {
+            "label": "？",
+            "action": {
+              "type": "symbol",
+              "text": "？"
+            }
+          },
+          "down": null
+        },
+        {
+          "weight": 1.0,
+          "center": {
+            "label": "『",
+            "action": {
+              "type": "symbol",
+              "text": "『"
+            }
+          },
+          "style": "CHARACTER",
+          "left": {
+            "label": "』",
+            "action": {
+              "type": "symbol",
+              "text": "』"
+            }
+          },
+          "up": {
+            "label": "【",
+            "action": {
+              "type": "symbol",
+              "text": "【"
+            }
+          },
+          "right": {
+            "label": "】",
+            "action": {
+              "type": "symbol",
+              "text": "】"
+            }
+          },
+          "down": null
+        },
+        {
+          "weight": 1.0,
+          "center": {
+            "label": "〈",
+            "action": {
+              "type": "symbol",
+              "text": "〈"
+            }
+          },
+          "style": "CHARACTER",
+          "left": {
+            "label": "〉",
+            "action": {
+              "type": "symbol",
+              "text": "〉"
+            }
+          },
+          "up": {
+            "label": "《",
+            "action": {
+              "type": "symbol",
+              "text": "《"
+            }
+          },
+          "right": {
+            "label": "》",
+            "action": {
+              "type": "symbol",
+              "text": "》"
+            }
+          },
+          "down": null
+        },
+        {
+          "weight": 1.0,
+          "center": {
+            "label": "⌫",
+            "action": {
+              "type": "backspace"
+            }
+          },
+          "style": "ACTION",
+          "repeatable": true
+        }
+      ]
+    },
+    {
+      "keys": [
+        {
+          "weight": 1.0,
+          "center": {
+            "label": "◀",
+            "action": {
+              "type": "cursor",
+              "delta": -1
+            }
+          },
+          "style": "MODIFIER",
+          "repeatable": true
+        },
+        {
+          "weight": 1.0,
+          "center": {
+            "label": "〔",
+            "action": {
+              "type": "symbol",
+              "text": "〔"
+            }
+          },
+          "style": "CHARACTER",
+          "left": {
+            "label": "〕",
+            "action": {
+              "type": "symbol",
+              "text": "〕"
+            }
+          },
+          "up": {
+            "label": "｛",
+            "action": {
+              "type": "symbol",
+              "text": "｛"
+            }
+          },
+          "right": {
+            "label": "｝",
+            "action": {
+              "type": "symbol",
+              "text": "｝"
+            }
+          },
+          "down": null
+        },
+        {
+          "weight": 1.0,
+          "center": {
+            "label": "\"",
+            "action": {
+              "type": "symbol",
+              "text": "\""
+            }
+          },
+          "style": "CHARACTER",
+          "left": {
+            "label": "'",
+            "action": {
+              "type": "symbol",
+              "text": "'"
+            }
+          },
+          "up": {
+            "label": "＿",
+            "action": {
+              "type": "symbol",
+              "text": "＿"
+            }
+          },
+          "right": {
+            "label": "；",
+            "action": {
+              "type": "symbol",
+              "text": "；"
+            }
+          },
+          "down": null
+        },
+        {
+          "weight": 1.0,
+          "center": {
+            "label": "＆",
+            "action": {
+              "type": "symbol",
+              "text": "＆"
+            }
+          },
+          "style": "CHARACTER",
+          "left": {
+            "label": "＄",
+            "action": {
+              "type": "symbol",
+              "text": "＄"
+            }
+          },
+          "up": {
+            "label": "％",
+            "action": {
+              "type": "symbol",
+              "text": "％"
+            }
+          },
+          "right": {
+            "label": "＠",
+            "action": {
+              "type": "symbol",
+              "text": "＠"
+            }
+          },
+          "down": null
+        },
+        {
+          "weight": 1.0,
+          "center": {
+            "label": "▶",
+            "action": {
+              "type": "cursor",
+              "delta": 1
+            }
+          },
+          "style": "ACTION",
+          "repeatable": true
+        }
+      ]
+    },
+    {
+      "keys": [
+        {
+          "weight": 1.0,
+          "center": {
+            "label": "かな",
+            "action": {
+              "type": "layout",
+              "layoutId": "flick_kana"
+            }
+          },
+          "style": "MODIFIER"
+        },
+        {
+          "weight": 1.0,
+          "center": {
+            "label": "±",
+            "action": {
+              "type": "symbol",
+              "text": "±"
+            }
+          },
+          "style": "CHARACTER",
+          "left": {
+            "label": "≠",
+            "action": {
+              "type": "symbol",
+              "text": "≠"
+            }
+          },
+          "up": {
+            "label": "≦",
+            "action": {
+              "type": "symbol",
+              "text": "≦"
+            }
+          },
+          "right": {
+            "label": "≧",
+            "action": {
+              "type": "symbol",
+              "text": "≧"
+            }
+          },
+          "down": null
+        },
+        {
+          "weight": 1.0,
+          "center": {
+            "label": "∞",
+            "action": {
+              "type": "symbol",
+              "text": "∞"
+            }
+          },
+          "style": "CHARACTER",
+          "left": {
+            "label": "°",
+            "action": {
+              "type": "symbol",
+              "text": "°"
+            }
+          },
+          "up": {
+            "label": "℃",
+            "action": {
+              "type": "symbol",
+              "text": "℃"
+            }
+          },
+          "right": {
+            "label": "√",
+            "action": {
+              "type": "symbol",
+              "text": "√"
+            }
+          },
+          "down": null
+        },
+        {
+          "weight": 1.0,
+          "center": {
+            "label": "※",
+            "action": {
+              "type": "symbol",
+              "text": "※"
+            }
+          },
+          "style": "CHARACTER",
+          "left": {
+            "label": "©",
+            "action": {
+              "type": "symbol",
+              "text": "©"
+            }
+          },
+          "up": {
+            "label": "®",
+            "action": {
+              "type": "symbol",
+              "text": "®"
+            }
+          },
+          "right": {
+            "label": "™",
+            "action": {
+              "type": "symbol",
+              "text": "™"
+            }
+          },
+          "down": null
+        },
+        {
+          "weight": 1.0,
+          "center": {
+            "label": "␣",
+            "action": {
+              "type": "space"
+            }
+          },
+          "style": "ACTION",
+          "repeatable": true
+        }
+      ]
+    },
+    {
+      "keys": [
+        {
+          "weight": 1.0,
+          "center": {
+            "label": "英数",
+            "action": {
+              "type": "layout",
+              "layoutId": "flick_ascii"
+            }
+          },
+          "style": "MODIFIER"
+        },
+        {
+          "weight": 1.0,
+          "center": {
+            "label": "●",
+            "action": {
+              "type": "symbol",
+              "text": "●"
+            }
+          },
+          "style": "CHARACTER",
+          "left": {
+            "label": "▲",
+            "action": {
+              "type": "symbol",
+              "text": "▲"
+            }
+          },
+          "up": {
+            "label": "■",
+            "action": {
+              "type": "symbol",
+              "text": "■"
+            }
+          },
+          "right": {
+            "label": "◆",
+            "action": {
+              "type": "symbol",
+              "text": "◆"
+            }
+          },
+          "down": null
+        },
+        {
+          "weight": 1.0,
+          "center": {
+            "label": "★",
+            "action": {
+              "type": "symbol",
+              "text": "★"
+            }
+          },
+          "style": "CHARACTER",
+          "left": {
+            "label": "♡",
+            "action": {
+              "type": "symbol",
+              "text": "♡"
+            }
+          },
+          "up": {
+            "label": "♂",
+            "action": {
+              "type": "symbol",
+              "text": "♂"
+            }
+          },
+          "right": {
+            "label": "♀",
+            "action": {
+              "type": "symbol",
+              "text": "♀"
+            }
+          },
+          "down": null
+        },
+        {
+          "weight": 1.0,
+          "center": {
+            "label": "→",
+            "action": {
+              "type": "symbol",
+              "text": "→"
+            }
+          },
+          "style": "CHARACTER",
+          "left": {
+            "label": "←",
+            "action": {
+              "type": "symbol",
+              "text": "←"
+            }
+          },
+          "up": {
+            "label": "↑",
+            "action": {
+              "type": "symbol",
+              "text": "↑"
+            }
+          },
+          "right": {
+            "label": "↓",
+            "action": {
+              "type": "symbol",
+              "text": "↓"
+            }
+          },
+          "down": null
+        },
+        {
+          "weight": 1.0,
+          "center": {
+            "label": "↵",
+            "action": {
+              "type": "enter"
+            }
+          },
+          "style": "ACTION"
+        }
+      ]
+    }
+  ]
+}
