@@ -380,11 +380,14 @@ class FlickKeyboardView @JvmOverloads constructor(
 
     // ------------------------------------------------------------ リキッドグラス
     //
-    //  キー1つの断面（上が明るく、下へ消えていく細い縁）
-    //   ╭──────────╮ ← 縁の上側：白く少し光る
-    //   │  半透明   │ ← 中：うっすら白い（背景が透ける）
-    //   ╰──────────╯ ← 縁の下側：ほぼ見えない
-    //  影・ぼかし・虹色などは使わない（やりすぎ防止）。
+    //  iOS のキーボードにならう：ふだんのキーは「縁なし・のっぺり・半透明」。
+    //  光る縁やつやは、押している間だけ（指で押すとガラスのレンズになる）。
+    //
+    //   ふだん           押している間
+    //   ╭────────╮      ✦╭──────────╮   ← 左上と右下にだけ細い光（斜めから光が当たる）
+    //   │   あ   │       │    あ    │   ← 少しふくらんで明るくなる
+    //   ╰────────╯       ╰──────────╯✦
+    //  上下のグラデーション・常に光る縁は使わない（昔のガラケーっぽくなるため）。
 
     /** リキッドグラス風に描くか。 */
     var glass: Boolean = true
@@ -407,16 +410,32 @@ class FlickKeyboardView @JvmOverloads constructor(
     private fun prepareGlass() {
         val d = resources.displayMetrics.density
         glassStroke.strokeWidth = 1f * d
-        val top = if (darkTheme) 0x59 else 0xCC
-        val bottom = if (darkTheme) 0x0A else 0x22
+        // 斜め（左上→右下）の縁の光：両端だけ光り、真ん中は消える
+        val peak = if (darkTheme) 0x8C else 0xE6
+        val tail = peak * 6 / 10
         glassShader = android.graphics.LinearGradient(
-            0f, 0f, 0f, 1f,
-            android.graphics.Color.argb(top, 255, 255, 255),
-            android.graphics.Color.argb(bottom, 255, 255, 255),
+            0f, 0f, 1f, 1f,
+            intArrayOf(
+                android.graphics.Color.argb(peak, 255, 255, 255),
+                android.graphics.Color.argb(0, 255, 255, 255),
+                android.graphics.Color.argb(0, 255, 255, 255),
+                android.graphics.Color.argb(tail, 255, 255, 255),
+            ),
+            floatArrayOf(0f, 0.3f, 0.7f, 1f),
             android.graphics.Shader.TileMode.CLAMP,
         )
         glassStroke.shader = glassShader
+        shadowPaint.color = android.graphics.Color.argb(0x1A, 0, 0, 0)
     }
+
+    /** 縁の光を [rect] の大きさに合わせる。 */
+    private fun fitRim(rect: RectF) {
+        glassMatrix.setScale(rect.width(), rect.height())
+        glassMatrix.postTranslate(rect.left, rect.top)
+        glassShader?.setLocalMatrix(glassMatrix)
+    }
+
+    private val shadowPaint = Paint(Paint.ANTI_ALIAS_FLAG)
 
     private val glassRect = RectF()
     private val glassPath = android.graphics.Path()
@@ -455,8 +474,8 @@ class FlickKeyboardView @JvmOverloads constructor(
         val b = placed.bounds
         glassRect.set(b)
         if (strength > 0f) {
-            // ふくらみ（最大 2dp）と、指の方への伸び（最大 9dp）
-            val swell = 2f * d * strength
+            // ふくらみ（最大 3dp）と、指の方への伸び（最大 9dp）
+            val swell = 3f * d * strength
             glassRect.inset(-swell, -swell)
             val limit = 9f * d
             val sx = (dx * 0.2f).coerceIn(-limit, limit) * strength
@@ -464,11 +483,16 @@ class FlickKeyboardView @JvmOverloads constructor(
             if (sx > 0) glassRect.right += sx else glassRect.left += sx
             if (sy > 0) glassRect.bottom += sy else glassRect.top += sy
         }
-        val r = max(theme.keyCornerRadiusDp, 11f) * d
+        val r = max(theme.keyCornerRadiusDp, 13f) * d
         val character = placed.spec.style == KeyStyle.CHARACTER
-        val rest = if (character) (if (darkTheme) 0x1C else 0xA6) else (if (darkTheme) 0x10 else 0x70)
-        val pressed = if (darkTheme) 0x34 else 0xE6
+        val rest = if (character) (if (darkTheme) 0x2E else 0xF2) else (if (darkTheme) 0x17 else 0x8C)
+        val pressed = if (darkTheme) 0x46 else 0xFF
         val alpha = (rest + (pressed - rest) * strength).toInt()
+        // 明るいテーマだけ、キーの下にごく薄い影（iOS と同じく、キーが少し浮いて見える）
+        if (!darkTheme) {
+            val drop = 1.5f * d
+            canvas.drawRoundRect(glassRect.left, glassRect.top + drop, glassRect.right, glassRect.bottom + drop, r, r, shadowPaint)
+        }
         glassFill.color = android.graphics.Color.argb(alpha, 255, 255, 255)
         canvas.drawRoundRect(glassRect, r, r, glassFill)
 
@@ -479,7 +503,7 @@ class FlickKeyboardView @JvmOverloads constructor(
             canvas.save()
             canvas.clipPath(glassPath)
             val radius = max(glassRect.width(), glassRect.height()) * 0.85f
-            val peak = ((if (darkTheme) 0x48 else 0x70) * strength).toInt()
+            val peak = ((if (darkTheme) 0x30 else 0x40) * strength).toInt()
             specularPaint.shader = android.graphics.RadialGradient(
                 lx, ly, radius,
                 intArrayOf(android.graphics.Color.argb(peak, 255, 255, 255), android.graphics.Color.argb(0, 255, 255, 255)),
@@ -489,12 +513,15 @@ class FlickKeyboardView @JvmOverloads constructor(
             canvas.restore()
         }
 
-        glassMatrix.setScale(1f, glassRect.height())
-        glassMatrix.postTranslate(0f, glassRect.top)
-        glassShader?.setLocalMatrix(glassMatrix)
-        val inset = glassStroke.strokeWidth / 2f
-        canvas.drawRoundRect(glassRect.left + inset, glassRect.top + inset,
-            glassRect.right - inset, glassRect.bottom - inset, r, r, glassStroke)
+        // 縁の光は押している間だけ
+        if (strength > 0f) {
+            fitRim(glassRect)
+            glassStroke.alpha = (255 * strength).toInt()
+            val inset = glassStroke.strokeWidth / 2f
+            canvas.drawRoundRect(glassRect.left + inset, glassRect.top + inset,
+                glassRect.right - inset, glassRect.bottom - inset, r, r, glassStroke)
+            glassStroke.alpha = 255
+        }
     }
 
     /** 押した直後・離した直後の動きが残っているか（残っていれば次の画面も描く）。 */
@@ -521,7 +548,7 @@ class FlickKeyboardView @JvmOverloads constructor(
         previewRect.set(bounds)
         previewRect.offset(0f, -(bounds.height() + gap) * grow)
         clampIntoView(previewRect)
-        val r = max(theme.keyCornerRadiusDp, 11f) * d
+        val r = max(theme.keyCornerRadiusDp, 13f) * d
 
         // くびれ：キーの上辺と吹き出しの下辺を、内側に反ったカーブでつなぐ
         val neckTop = previewRect.bottom
@@ -544,9 +571,8 @@ class FlickKeyboardView @JvmOverloads constructor(
         guideBackgroundPaint.alpha = 0xEE
         canvas.drawRoundRect(previewRect, r, r, guideBackgroundPaint)
         guideBackgroundPaint.alpha = 255
-        glassMatrix.setScale(1f, previewRect.height())
-        glassMatrix.postTranslate(0f, previewRect.top)
-        glassShader?.setLocalMatrix(glassMatrix)
+        if (glassShader == null) prepareGlass()
+        fitRim(previewRect)
         canvas.drawRoundRect(previewRect, r, r, glassStroke)
         guideLabelPaint.color = theme.flickGuideSelectedLabelColor
         val baseline =

@@ -46,35 +46,13 @@ class KeyboardPanelView(context: Context) : LinearLayout(context) {
         invalidate()
     }
 
-    /** リキッドグラス：背景の上の方をほんの少し明るくして、奥行きを出す。 */
+    /** リキッドグラスか。背景には何も足さない（上が明るいグラデーションは古く見えるのでやめた）。 */
     var glass: Boolean = true
         set(value) { field = value; invalidate() }
-
-    private val sheenPaint = Paint()
-    private var sheenHeight = -1
-
-    private fun drawSheen(canvas: Canvas) {
-        if (!glass || height == 0) return
-        if (sheenHeight != height) {
-            sheenHeight = height
-            sheenPaint.shader = android.graphics.LinearGradient(
-                0f, 0f, 0f, height.toFloat(),
-                intArrayOf(
-                    android.graphics.Color.argb(0x1A, 255, 255, 255),
-                    android.graphics.Color.argb(0x05, 255, 255, 255),
-                    android.graphics.Color.argb(0x00, 255, 255, 255),
-                ),
-                floatArrayOf(0f, 0.35f, 1f),
-                android.graphics.Shader.TileMode.CLAMP,
-            )
-        }
-        canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), sheenPaint)
-    }
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
         drawPanel(canvas)
-        drawSheen(canvas)
     }
 
     private fun drawPanel(canvas: Canvas) {
