@@ -265,7 +265,7 @@ private fun MyKeyboardCard() {
 
             SettingSwitch(
                 title = "⌫を左にずらして全削除",
-                body = "⌫を押したまま指を左にずらして止めると、赤いゲージがたまり、満タンで入力欄の文字を全部消します。普通の長押しは1文字ずつ連続で消します",
+                body = "⌫を押したまま指を左にずらして止めると、赤いゲージがたまり、満タンでカーソルより左の文字を全部消します。普通の長押しは1文字ずつ連続で消します",
                 checked = holdToClear,
             ) { holdToClear = it; settings.holdToClear = it }
 
@@ -274,17 +274,22 @@ private fun MyKeyboardCard() {
                     "全削除のチャージ時間：%.1f 秒".format(charge / 1000f),
                     style = MaterialTheme.typography.bodySmall,
                 )
+                // 0.1秒きざみ（0.1〜3.0秒）。−／＋で0.1秒ずつ動かせる
+                val setCharge = { v: Float ->
+                    charge = (Math.round(v / 100f) * 100f).coerceIn(100f, 3000f)
+                    settings.clearChargeMs = charge.toLong()
+                }
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("短い", style = MaterialTheme.typography.bodySmall)
+                    TextButton(onClick = { setCharge(charge - 100f) }) { Text("−") }
                     Slider(
                         value = charge,
                         onValueChange = { charge = it },
-                        onValueChangeFinished = { settings.clearChargeMs = charge.toLong() },
-                        valueRange = 300f..3000f,
-                        steps = 26,
-                        modifier = Modifier.weight(1f).padding(horizontal = 8.dp),
+                        onValueChangeFinished = { setCharge(charge) },
+                        valueRange = 100f..3000f,
+                        steps = 28,
+                        modifier = Modifier.weight(1f).padding(horizontal = 4.dp),
                     )
-                    Text("長い", style = MaterialTheme.typography.bodySmall)
+                    TextButton(onClick = { setCharge(charge + 100f) }) { Text("＋") }
                 }
             }
 
