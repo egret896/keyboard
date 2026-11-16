@@ -34,6 +34,7 @@ import io.github.soichi11208.zinna.keyboard.KeyboardLayout
 import io.github.soichi11208.zinna.keyboard.SplitLayout
 import io.github.soichi11208.zinna.keyboard.KeyboardPanelView
 import io.github.soichi11208.zinna.keyboard.SymbolPanelView
+import io.github.soichi11208.zinna.keyboard.Anim
 import io.github.soichi11208.zinna.keyboard.LayoutRepository
 import io.github.soichi11208.zinna.settings.ImeSettings
 import io.github.soichi11208.zinna.theme.KeyboardTheme
@@ -709,6 +710,7 @@ class ZinnaImeService : InputMethodService() {
         lastTableKey = null
         layout = next
         keyboardView?.layout = adaptForWidth(next)
+        keyboardView?.let { Anim.fadeIn(it, from = 0.6f) }
         // Set alongside the layout, not once at view creation: the guide depends on which plane is
         // showing, and switching planes never rebuilds the view.
         keyboardView?.guideStyle = guideStyleFor(next)
@@ -907,12 +909,15 @@ class ZinnaImeService : InputMethodService() {
         val view = candidateView ?: return
         val actions = mutableListOf<CandidateStripView.Action>()
         if (clipboard.items().isNotEmpty()) {
-            actions += CandidateStripView.Action(CLIPBOARD_LABEL, R.drawable.ic_clipboard) { showClipboard() }
+            actions += CandidateStripView.Action("", R.drawable.ic_clipboard, CLIPBOARD_LABEL) { showClipboard() }
         }
-        actions += CandidateStripView.Action(UNDO_LABEL, R.drawable.ic_undo) { render(session.undo()) }
-        actions += CandidateStripView.Action(
-            if (settings.privateMode) PRIVATE_ON_LABEL else PRIVATE_OFF_LABEL
-        ) { togglePrivateMode() }
+        actions += CandidateStripView.Action("", R.drawable.ic_undo, UNDO_LABEL) { render(session.undo()) }
+        // 鍵が閉じている＝プライベート中、開いている＝ふつう。
+        actions += if (settings.privateMode) {
+            CandidateStripView.Action("", R.drawable.ic_lock, PRIVATE_ON_LABEL) { togglePrivateMode() }
+        } else {
+            CandidateStripView.Action("", R.drawable.ic_lock_open, PRIVATE_OFF_LABEL) { togglePrivateMode() }
+        }
         view.setActions(actions)
     }
 
@@ -975,6 +980,7 @@ class ZinnaImeService : InputMethodService() {
         }
         panel.reset()
         keyboard.visibility = View.GONE
+        Anim.fadeIn(panel)
         panel.visibility = View.VISIBLE
     }
 
@@ -1008,8 +1014,9 @@ class ZinnaImeService : InputMethodService() {
         }
 
     private fun closeSymbolPanel() {
-        symbolPanel?.visibility = View.GONE
-        keyboardView?.visibility = View.VISIBLE
+        val panel = symbolPanel
+        if (panel?.visibility == View.VISIBLE) panel.visibility = View.GONE
+        keyboardView?.let { if (it.visibility != View.VISIBLE) { it.visibility = View.VISIBLE; Anim.fadeIn(it) } }
     }
 
     private fun chipLabel(text: String): String {
@@ -1044,8 +1051,8 @@ class ZinnaImeService : InputMethodService() {
         private const val CLIPBOARD_LABEL = "クリップボード"
         private const val UNDO_LABEL = "元に戻す"
         private const val BACK_LABEL = "✕"
-        private const val PRIVATE_OFF_LABEL = "🔓 プライベート"
-        private const val PRIVATE_ON_LABEL = "🔒 プライベート中"
+        private const val PRIVATE_OFF_LABEL = "プライベートモード：オフ"
+        private const val PRIVATE_ON_LABEL = "プライベートモード：オン"
 
         /** これ以上の横幅（dp）なら左右分割にする。Fold7 を開くと約 840dp、閉じると約 400dp。 */
         private const val SPLIT_MIN_WIDTH_DP = 600

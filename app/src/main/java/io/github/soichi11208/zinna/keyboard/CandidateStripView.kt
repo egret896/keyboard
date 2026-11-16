@@ -38,6 +38,8 @@ class CandidateStripView(context: Context) : FrameLayout(context) {
         val label: String,
         /** Drawable to sit before the label, or 0 for none. */
         val iconRes: Int = 0,
+        /** アイコンだけのボタンの説明（読み上げ用）。 */
+        val description: String? = null,
         val onSelected: () -> Unit,
     )
 
@@ -84,6 +86,7 @@ class CandidateStripView(context: Context) : FrameLayout(context) {
                 to.addView(chip)
             }
             invalidate()
+            Anim.fadeIn(if (value) wrapped else oneLine)
             expandedListener?.onExpandedChanged(value)
         }
 
@@ -203,6 +206,10 @@ class CandidateStripView(context: Context) : FrameLayout(context) {
             if (view.getTag(R.id.chip_icon) != 0) {
                 view.setTag(R.id.chip_icon, 0)
                 view.setCompoundDrawablesRelativeWithIntrinsicBounds(0, 0, 0, 0)
+                // アイコンボタン用に広げた左右の余白を元に戻す。
+                val pad = (12 * resources.displayMetrics.density).toInt()
+                view.setPadding(pad, view.paddingTop, pad, view.paddingBottom)
+                view.contentDescription = null
             }
         }
 
@@ -244,7 +251,14 @@ class CandidateStripView(context: Context) : FrameLayout(context) {
             if (view.getTag(R.id.chip_icon) != action.iconRes) {
                 view.setTag(R.id.chip_icon, action.iconRes)
                 view.setCompoundDrawablesRelativeWithIntrinsicBounds(action.iconRes, 0, 0, 0)
+                if (view.isLaidOut) Anim.pop(view)
             }
+            view.contentDescription = action.description ?: action.label
+            // アイコンだけのボタンは、文字との隙間をなくして左右を広めにとる（押しやすく）。
+            val iconOnly = action.label.isEmpty() && action.iconRes != 0
+            val pad = ((if (iconOnly) 18 else 12) * resources.displayMetrics.density).toInt()
+            view.compoundDrawablePadding = if (iconOnly) 0 else pad / 2
+            view.setPadding(pad, view.paddingTop, pad, view.paddingBottom)
         }
 
         if (focusedChild != -1) {
@@ -306,6 +320,7 @@ class CandidateStripView(context: Context) : FrameLayout(context) {
             if (theme.hapticFeedback) {
                 clicked.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
             }
+            Anim.tap(clicked)
             // Read through the tag rather than capturing: the chip outlives the candidate it was
             // first built for, so a captured one would commit whatever was showing keystrokes ago.
             when (val tag = clicked.tag) {
