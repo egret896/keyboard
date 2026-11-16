@@ -43,6 +43,7 @@ class KeyboardPanelView(context: Context) : LinearLayout(context) {
         bitmap?.recycle()
         bitmap = file?.let { decodeScaled(it) }
         bitmapPaint.alpha = (opacity.coerceIn(0f, 1f) * 255).toInt()
+        backdropRevision++
         invalidate()
     }
 
@@ -53,6 +54,33 @@ class KeyboardPanelView(context: Context) : LinearLayout(context) {
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
         drawPanel(canvas)
+    }
+
+    /** 背景画像が変わった回数。キーのレンズ（屈折）画像を作り直す合図。 */
+    var backdropRevision = 0
+        private set
+
+    /**
+     * [child] の真後ろに見えている背景（色＋画像）を、[child] と同じ大きさの画像にして返す。
+     * 背景画像がないときは null（ゆがめる物がないので屈折もしない）。
+     */
+    fun snapshotBehind(child: android.view.View): Bitmap? {
+        bitmap ?: return null
+        if (child.width <= 0 || child.height <= 0 || width == 0 || height == 0) return null
+        var ox = 0f
+        var oy = 0f
+        var v: android.view.View = child
+        while (v !== this) {
+            ox += v.left + v.translationX - v.scrollX
+            oy += v.top + v.translationY - v.scrollY
+            v = v.parent as? android.view.View ?: return null
+        }
+        val out = Bitmap.createBitmap(child.width, child.height, Bitmap.Config.ARGB_8888)
+        val c = Canvas(out)
+        c.translate(-ox, -oy)
+        background?.draw(c)
+        drawPanel(c)
+        return out
     }
 
     private fun drawPanel(canvas: Canvas) {

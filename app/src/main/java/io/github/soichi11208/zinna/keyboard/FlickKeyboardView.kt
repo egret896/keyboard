@@ -320,6 +320,7 @@ class FlickKeyboardView @JvmOverloads constructor(
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
         val radius = theme.keyCornerRadiusDp * resources.displayMetrics.density
+        ensureLenses()
 
         drawAside(canvas)
         val waveT = waveProgress()
@@ -433,7 +434,41 @@ class FlickKeyboardView @JvmOverloads constructor(
     }
 
     private val bevels = HashMap<Long, android.graphics.Bitmap>()
+
+    // ---- 屈折（背景画像がキーの中でゆがんで見える）
+    /** このビューの真後ろの背景を返す（背景画像がなければ null）。 */
+    var backdropProvider: (() -> android.graphics.Bitmap?)? = null
+    /** 背景が変わった回数（変わったらレンズを作り直す）。 */
+    var backdropRevision: () -> Int = { 0 }
+    @Volatile private var lensSignature: String? = null
+    private var lenses: Map<PlacedKey, android.graphics.Bitmap> = emptyMap()
+
+    /** キーの並びか背景が変わっていたら、レンズ画像を裏で作り直す。 */
+    private fun ensureLenses() {
+        if (!glass) return
+        val signature = "${backdropRevision()}:$left:$top:$width:$height:${System.identityHashCode(placedKeys)}"
+        if (signature == lensSignature) return
+        lensSignature = signature
+        val snapshot = backdropProvider?.invoke()
+        if (snapshot == null) { lenses = emptyMap(); return }
+        val sw = snapshot.width
+        val sh = snapshot.height
+        val pixels = IntArray(sw * sh)
+        snapshot.getPixels(pixels, 0, sw, 0, 0, sw, sh)
+        snapshot.recycle()
+        val keys = placedKeys.map { it to RectF(it.bounds) }
+        val density = resources.displayMetrics.density
+        LENS_WORKER.execute {
+            val made = HashMap<PlacedKey, android.graphics.Bitmap>()
+            for ((key, rect) in keys) {
+                if (lensSignature != signature) return@execute
+                Lens.render(pixels, sw, sh, rect, density)?.let { made[key] = it }
+            }
+            post { if (lensSignature == signature) { lenses = made; invalidate() } }
+        }
+    }
     private val bevelPaint = Paint(Paint.FILTER_BITMAP_FLAG)
+    private val lensPaint = Paint(Paint.FILTER_BITMAP_FLAG)
 
     /** キーの大きさごとに、光る縁の画像を1枚だけ作って使い回す。 */
     private fun bevel(w: Int, h: Int, r: Float): android.graphics.Bitmap {
@@ -534,6 +569,8 @@ class FlickKeyboardView @JvmOverloads constructor(
             val drop = 1.5f * d
             canvas.drawRoundRect(glassRect.left, glassRect.top + drop, glassRect.right, glassRect.bottom + drop, r, r, shadowPaint)
         }
+        // 背景画像があれば、レンズ越しにゆがんだ背景を先に敷く（押してふくらむと一緒に伸びる）
+        lenses[placed]?.let { canvas.drawBitmap(it, null, glassRect, lensPaint) }
         glassFill.color = android.graphics.Color.argb(alpha, 255, 255, 255)
         canvas.drawRoundRect(glassRect, r, r, glassFill)
 
@@ -1000,6 +1037,9 @@ class FlickKeyboardView @JvmOverloads constructor(
 
     companion object {
         const val DEFAULT_FLICK_THRESHOLD_DP = 24f
+
+        /** レンズ（屈折）画像を作る裏の作業用スレッド。キーボードを作り直しても1本だけ。 */
+        private val LENS_WORKER = java.util.concurrent.Executors.newSingleThreadExecutor()
 
         /** 左へずらしてからゲージがたまり始めるまで。 */
         private const val GAUGE_DELAY_MS = 150L

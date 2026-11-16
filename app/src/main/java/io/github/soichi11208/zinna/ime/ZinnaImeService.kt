@@ -269,6 +269,8 @@ class ZinnaImeService : InputMethodService() {
         keyboardMenu = null
         candidateView = candidates
         stripContent = StripContent.IDLE_ACTIONS
+        keyboard.backdropProvider = { root.snapshotBehind(keyboard) }
+        keyboard.backdropRevision = { root.backdropRevision }
         keyboardView = keyboard
         builtFromRevision = settings.revision
         loaded?.let { session.applyInputStyle(effectiveStyle(it.inputStyle)) }
