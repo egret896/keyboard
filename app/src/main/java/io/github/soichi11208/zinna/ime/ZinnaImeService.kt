@@ -131,6 +131,10 @@ class ZinnaImeService : InputMethodService() {
      */
     private var clientContextValid = false
 
+    /** 入力欄のカーソル位置（onUpdateSelection で受け取った最新のもの。わからないときは -1）。 */
+    private var selStart = -1
+    private var selEnd = -1
+
     /** What the strip is worth when it is not covering the keyboard. */
     private var collapsedStripHeight = 0
 
@@ -323,6 +327,8 @@ class ZinnaImeService : InputMethodService() {
 
     override fun onStartInputView(info: EditorInfo?, restarting: Boolean) {
         super.onStartInputView(info, restarting)
+        selStart = info?.initialSelStart ?: -1
+        selEnd = info?.initialSelEnd ?: -1
         zenzai.setEnabled(settings.zenzaiPlusEnabled)
         session.setZenzaiEnabled(settings.zenzaiPlusEnabled, settings.zenzaiMozcEnabled)
         if (settings.zenzaiPlusEnabled) zenzai.syncDictionary { zenzaiDictionary = it }
@@ -376,6 +382,24 @@ class ZinnaImeService : InputMethodService() {
             oldSelStart, oldSelEnd, newSelStart, newSelEnd, candidatesStart, candidatesEnd,
         )
         clientContextValid = false
+        selStart = newSelStart
+        selEnd = newSelEnd
+        // 入力中（下線つき）なのに、カーソルがその外へ動かされた（画面を直接タップした等）。
+        // そのままだと次の文字が元の場所に入り、カーソルもそこへ飛んでしまうので、ここで確定する。
+        //   今日は|晴れ  ← 入力中「はれ」の外をタップ → 「はれ」を確定してから、新しい場所で入力
+        if (isComposing && candidatesStart >= 0 &&
+            (newSelStart < candidatesStart || newSelEnd > candidatesEnd)
+        ) {
+            toggleTimeout.cancel()
+            cancelZenzai()
+            currentInputConnection?.finishComposingText()
+            session.resetContext()
+            isComposing = false
+            lastTableKey = null
+            lastState = null
+            showIdleActions()
+            return
+        }
         // candidatesStart < 0 means the editor is no longer showing a composing region.
         if (candidatesStart < 0 && isComposing) {
             cancelZenzai()
@@ -514,13 +538,10 @@ class ZinnaImeService : InputMethodService() {
         val close = BRACKET_PAIRS[open] ?: return false
         val ic = currentInputConnection ?: return false
         if (isComposing) render(session.submit())
+        // 閉じ括弧は「カーソルを前に残したまま」入れる（位置を読み直さないので、ずれない）
         ic.beginBatchEdit()
-        ic.commitText(open + close, 1)
-        val extracted = ic.getExtractedText(android.view.inputmethod.ExtractedTextRequest(), 0)
-        if (extracted != null) {
-            val pos = extracted.startOffset + extracted.selectionStart - close.length
-            if (pos >= 0) ic.setSelection(pos, pos)
-        }
+        ic.commitText(open, 1)
+        ic.commitText(close, 0)
         ic.endBatchEdit()
         return true
     }
@@ -736,9 +757,26 @@ class ZinnaImeService : InputMethodService() {
             return
         }
         // Outside a composition, move the editor caret instead.
+        // 前は「アプリが返した一部の文字列」の中での位置を、全体の位置として使っていたので、
+        // 長い文章だとカーソルがとんでもない所（右端など）へ飛ぶことがあった。
         val ic = currentInputConnection ?: return
-        val extracted = ic.getExtractedText(android.view.inputmethod.ExtractedTextRequest(), 0) ?: return
-        val target = (extracted.selectionStart + delta).coerceIn(0, extracted.text?.length ?: 0)
+        if (selStart < 0) {
+            // 位置がわからないときは、矢印キーを送ってアプリに動かしてもらう
+            sendDownUpKeyEvents(
+                if (delta < 0) android.view.KeyEvent.KEYCODE_DPAD_LEFT else android.view.KeyEvent.KEYCODE_DPAD_RIGHT
+            )
+            return
+        }
+        val from = if (delta < 0) minOf(selStart, selEnd) else maxOf(selStart, selEnd)
+        val target = if (delta < 0) {
+            val before = ic.getTextBeforeCursor(-delta, 0)?.length ?: 0
+            from - minOf(-delta, before)
+        } else {
+            val after = ic.getTextAfterCursor(delta, 0)?.length ?: 0
+            from + minOf(delta, after)
+        }
+        if (target < 0) return
+        selStart = target; selEnd = target
         ic.setSelection(target, target)
     }
 
