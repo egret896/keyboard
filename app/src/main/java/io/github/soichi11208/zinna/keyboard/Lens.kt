@@ -39,15 +39,17 @@ internal object Lens {
         const val MAGNIFY = 0.05f        // まんなかの拡大
         const val BLUR_DP = 2.0f         // 背景ぼかし（Regular）
         const val SCATTER = 0.06f        // 光の散乱
-        const val SPEC = 0.9f            // 鏡面の光の強さ
-        const val SPEC_POWER = 70.0      // 鏡面の光の細さ
-        const val RIM_BACK = 0.5f        // 反対側の縁の光（主光に対する割合）
+        const val SPEC = 0.85f           // 縁の光の強さ
+        const val RIM_DP = 1.3f          // 縁の光の幅（縁にぴったり沿う細い光）
+        const val SLOPE = 2.5f           // 縁の丸みの急さ（平らな所へは段差なくなめらかにつながる）
+        const val RIM_BACK = 0.45f       // 反対側の縁の光（主光に対する割合）
         const val FRESNEL = 0.12f        // 周りの色の映り込み
-        const val INNER_SHADOW = 0.12f   // 内側の陰
-        const val CONTACT = 0.30f        // 接触影の濃さ
-        const val AMBIENT = 0.20f        // 落ち影の濃さ
-        const val AMBIENT_BLUR_DP = 9f   // 落ち影の広がり
-        const val AMBIENT_DY_DP = 3.5f   // 落ち影の下へのずれ
+        const val INNER_SHADOW = 0.10f   // 内側の陰
+        const val INNER_SHADOW_DP = 5f   // 内側の陰の幅
+        const val CONTACT = 0.0f         // 接触影（縁の外に黒い線ができて2重に見えるので使わない）
+        const val AMBIENT = 0.16f        // 落ち影の濃さ
+        const val AMBIENT_BLUR_DP = 10f  // 落ち影の広がり
+        const val AMBIENT_DY_DP = 4f     // 落ち影の下へのずれ
         const val MARGIN_DP = 14f        // 影のためにキーの外側へ取る余白
         // 光の向き（左上・手前から）
         const val LX = -0.55f
@@ -109,6 +111,7 @@ internal object Lens {
         val red = FloatArray(n); val green = FloatArray(n); val blue = FloatArray(n)
         val cover = FloatArray(n)
         val slopeX = FloatArray(n); val slopeY = FloatArray(n); val flat = FloatArray(n); val edge = FloatArray(n)
+        val normX = FloatArray(n); val normY = FloatArray(n); val depth = FloatArray(n)
         for (y in 0 until bh) {
             val py = y + 0.5f - m - h / 2f
             for (x in 0 until bw) {
@@ -126,9 +129,11 @@ internal object Lens {
                     val l = max(outside, 1e-3f); nx = ox / l * sign(px); ny = oy / l * sign(py)
                 } else if (qx > qy) { nx = sign(px); ny = 0f } else { nx = 0f; ny = sign(py) }
                 val s = 1f - (inside / z).coerceIn(0f, 1f)        // 縁で1、平らな所で0
-                val slope = min(s / sqrt(max(1f - s * s, 0.02f)), 6f)
+                // 傾きは平らな所で0、縁へ向かってなめらかに増える（途中に折れ目＝2本目の線ができない）
+                val slope = Tokens.SLOPE * s * s
                 val nz = 1f / sqrt(1f + slope * slope)
                 slopeX[i] = nx * slope * nz; slopeY[i] = ny * slope * nz; flat[i] = nz; edge[i] = s
+                normX[i] = nx; normY[i] = ny; depth[i] = max(inside, 0f)
                 val disp = Tokens.REFRACT * (1f + 0.4f * press) * z * s * s
                 val bx = cx + px * (1f - Tokens.MAGNIFY)
                 val by = cy + py * (1f - Tokens.MAGNIFY)
@@ -156,8 +161,8 @@ internal object Lens {
         val tintB = if (darken) avgB * 0.35f else 255f
         val ll = sqrt(Tokens.LX * Tokens.LX + Tokens.LY * Tokens.LY + Tokens.LZ * Tokens.LZ)
         val lx = Tokens.LX / ll; val ly = Tokens.LY / ll; val lz = Tokens.LZ / ll
-        val hzr = sqrt(lx * lx + ly * ly + (lz + 1f) * (lz + 1f))
-        val hx = lx / hzr; val hy = ly / hzr; val hz = (lz + 1f) / hzr
+        val l2 = sqrt(lx * lx + ly * ly)
+        val l2x = lx / l2; val l2y = ly / l2
         val envR = min(255f, avgR * 1.25f + 40f); val envG = min(255f, avgG * 1.25f + 40f); val envB = min(255f, avgB * 1.25f + 40f)
         val specGain = Tokens.SPEC * (1f + 0.3f * press)
 
@@ -184,21 +189,19 @@ internal object Lens {
             var cg = green[i] * (1f - Tokens.SCATTER) + scatterG * Tokens.SCATTER
             var cb = blue[i] * (1f - Tokens.SCATTER) + scatterB * Tokens.SCATTER
             cr += (tintR - cr) * tint; cg += (tintG - cg) * tint; cb += (tintB - cb) * tint
-            val gx = slopeX[i]; val gy = slopeY[i]; val nz = flat[i]; val s = edge[i]
-            // 内側の陰（光と反対を向いた縁）
-            val shade = max(0f, -(gx * lx + gy * ly)) * Tokens.INNER_SHADOW * s.toDouble().pow(0.7).toFloat()
+            val nz = flat[i]
+            val facing = -(normX[i] * l2x + normY[i] * l2y)        // 光の方を向いた縁で 1、反対で -1
+            // 内側の陰（光と反対を向いた縁の内側）
+            val shade = max(0f, -facing) * Tokens.INNER_SHADOW * kotlin.math.exp(-depth[i] / (Tokens.INNER_SHADOW_DP * density))
             cr *= 1f - shade; cg *= 1f - shade; cb *= 1f - shade
             // 周りの色の映り込み
             val fres = Tokens.FRESNEL * (1f - nz).toDouble().pow(2.5).toFloat()
             cr += (envR - cr) * fres; cg += (envG - cg) * fres; cb += (envB - cb) * fres
             // 鏡面の光（左上に強く、右下に弱く）
-            var spec = 0f
-            if (s > 0.02f) {
-                val ndh = (gx * hx + gy * hy + nz * hz).coerceIn(0f, 1f)
-                val ndh2 = (-gx * hx - gy * hy + nz * hz).coerceIn(0f, 1f)
-                spec = specGain * (ndh.toDouble().pow(Tokens.SPEC_POWER).toFloat() +
-                    Tokens.RIM_BACK * ndh2.toDouble().pow(Tokens.SPEC_POWER * 1.5).toFloat())
-            }
+            // 縁の光：縁にぴったり沿う細い光。光の方を向いた所ほど明るく、向きでなめらかに変わる
+            val rim = kotlin.math.exp(-depth[i] / (Tokens.RIM_DP * density))
+            val toward = max(0f, facing); val away = max(0f, -facing)
+            val spec = specGain * rim * (toward * sqrt(toward) + Tokens.RIM_BACK * away * sqrt(away))
             cr += 255f * spec; cg += 255f * spec; cb += 255f * spec
             // 縁のなめらかさ：形の外の半ピクセルは影と混ぜる
             val a = c + shadowA * (1f - c)
