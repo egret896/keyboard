@@ -146,7 +146,8 @@ private fun MyKeyboardCard() {
     var holdToClear by remember { mutableStateOf(settings.holdToClear) }
     var charge by remember { mutableStateOf(settings.clearChargeMs.toFloat()) }
     var autoBracket by remember { mutableStateOf(settings.autoBracket) }
-    var glass by remember { mutableStateOf(settings.liquidGlass) }
+    var look by remember { mutableStateOf(settings.keyLook) }
+    val glass = look == ImeSettings.LOOK_GLASS
     var refract by remember { mutableStateOf(settings.glassRefract) }
     var frost by remember { mutableStateOf(settings.glassFrost) }
     var glassLight by remember { mutableStateOf(settings.glassLight) }
@@ -189,11 +190,19 @@ private fun MyKeyboardCard() {
 
             HorizontalDivider()
 
-            SettingSwitch(
-                title = "リキッドグラス",
-                body = "キーを半透明のガラス調にします。OFFにすると、前の平らな見た目に戻ります",
-                checked = glass,
-            ) { glass = it; settings.liquidGlass = it }
+            Text("キーの見た目", style = MaterialTheme.typography.bodyLarge)
+            for ((option, label) in listOf(
+                ImeSettings.LOOK_GLASS to "リキッドグラス（厚いガラス。背景画像がゆがんで見える）",
+                ImeSettings.LOOK_MINIMAL to "ミニマリスト（キーの間に細い線だけ）",
+                ImeSettings.LOOK_FLAT to "ふつう（平らなキー）",
+            )) {
+                val onSelect = { look = option; settings.keyLook = option }
+                if (look == option) {
+                    Button(onClick = onSelect, modifier = Modifier.fillMaxWidth()) { Text(label) }
+                } else {
+                    OutlinedButton(onClick = onSelect, modifier = Modifier.fillMaxWidth()) { Text(label) }
+                }
+            }
 
             if (glass) {
                 Text(

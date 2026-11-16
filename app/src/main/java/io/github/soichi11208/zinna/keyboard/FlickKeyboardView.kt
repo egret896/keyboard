@@ -323,6 +323,7 @@ class FlickKeyboardView @JvmOverloads constructor(
         ensureLenses()
 
         drawAside(canvas)
+        if (minimal && !glass) drawRules(canvas)
         val waveT = waveProgress()
         for (placed in placedKeys) {
             val bump = if (waveT >= 0f) waveBump(placed, waveT) else 0f
@@ -395,6 +396,52 @@ class FlickKeyboardView @JvmOverloads constructor(
     /** リキッドグラス風に描くか。 */
     var glass: Boolean = true
         set(value) { field = value; invalidate() }
+
+    // ------------------------------------------------------------ ミニマリスト
+    //
+    //   あ │ か │ さ        ← キーの面は描かない。キーとキーの間に細い線だけ
+    //  ──     ──    ──       ← 線どうしは交わらせない（十字の所はすき間）
+    //   た │ な │ は
+    //
+    /** ミニマリスト（罫線だけ）で描くか。リキッドグラスより優先しない（glass が true なら glass）。 */
+    var minimal: Boolean = false
+        set(value) { field = value; invalidate() }
+
+    private val rulePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { strokeCap = Paint.Cap.ROUND }
+    private var rulesFor: List<PlacedKey>? = null
+    private val rules = ArrayList<FloatArray>()
+
+    /** キーの間の線を、キー配置が変わったときだけ計算し直す。 */
+    private fun drawRules(canvas: Canvas) {
+        if (rulesFor !== placedKeys) {
+            rulesFor = placedKeys
+            rules.clear()
+            for (k in placedKeys) {
+                val b = k.bounds
+                // 右どなり（同じ段で、すぐ右にあるキー）との間に縦線
+                placedKeys.filter { it !== k && it.bounds.left >= b.right - 1f &&
+                    it.bounds.centerY() > b.top && it.bounds.centerY() < b.bottom }
+                    .minByOrNull { it.bounds.left }?.let { n ->
+                        val x = (b.right + n.bounds.left) / 2f
+                        val inset = b.height() * 0.24f
+                        rules += floatArrayOf(x, b.top + inset, x, b.bottom - inset)
+                    }
+                // 下どなりとの間に横線
+                placedKeys.filter { it !== k && it.bounds.top >= b.bottom - 1f &&
+                    it.bounds.centerX() > b.left && it.bounds.centerX() < b.right }
+                    .minByOrNull { it.bounds.top }?.let { n ->
+                        val y = (b.bottom + n.bounds.top) / 2f
+                        val inset = min(b.width() * 0.16f, b.height() * 0.3f)
+                        rules += floatArrayOf(b.left + inset, y, b.right - inset, y)
+                    }
+            }
+        }
+        val d = resources.displayMetrics.density
+        rulePaint.strokeWidth = 0.8f * d
+        rulePaint.color = theme.labelColor
+        rulePaint.alpha = 0x38
+        for (l in rules) canvas.drawLine(l[0], l[1], l[2], l[3], rulePaint)
+    }
 
     private val glassFill = Paint(Paint.ANTI_ALIAS_FLAG)
     private val glassStroke = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
@@ -705,7 +752,10 @@ class FlickKeyboardView @JvmOverloads constructor(
                 else -> modifierPaint
             }
             if (glass) drawGlassKey(canvas, placed)
-            else if (paint != null) canvas.drawRoundRect(placed.bounds, radius, radius, paint)
+            else if (minimal) {
+                // 押している間だけ、うっすら面を出す
+                if (isPressed(placed)) canvas.drawRoundRect(placed.bounds, radius, radius, keyPressedPaint)
+            } else if (paint != null) canvas.drawRoundRect(placed.bounds, radius, radius, paint)
             if (placed === gaugeKey) {
                 drawGauge(canvas, placed, if (glass) kotlin.math.min(placed.bounds.width(), placed.bounds.height()) / 2f else radius)
                 val hintBaseline = placed.bounds.centerY() - (labelPaint.descent() + labelPaint.ascent()) / 2f

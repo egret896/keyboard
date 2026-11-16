@@ -96,13 +96,25 @@ class ImeSettings(context: Context) {
             bumpRevision()
         }
 
-    /** リキッドグラス風の見た目（半透明のキー）。 */
-    var liquidGlass: Boolean
-        get() = prefs.getBoolean(KEY_LIQUID_GLASS, true)
+    /**
+     * キーの見た目。"glass"＝リキッドグラス、"minimal"＝ミニマリスト（罫線だけ）、"flat"＝平ら。
+     * 前の版の「リキッドグラス ON/OFF」を引き継ぐ（OFF だった人は平ら）。
+     */
+    var keyLook: String
+        get() = prefs.getString(KEY_KEY_LOOK, null)
+            ?: if (prefs.getBoolean(KEY_LIQUID_GLASS, true)) LOOK_GLASS else LOOK_FLAT
         set(value) {
-            prefs.edit().putBoolean(KEY_LIQUID_GLASS, value).apply()
+            prefs.edit().putString(KEY_KEY_LOOK, value).apply()
             bumpRevision()
         }
+
+    /** リキッドグラス風の見た目（半透明のキー）。 */
+    var liquidGlass: Boolean
+        get() = keyLook == LOOK_GLASS
+        set(value) { keyLook = if (value) LOOK_GLASS else LOOK_FLAT }
+
+    /** ミニマリスト（キーの間に細い線だけ）。 */
+    val minimalKeys: Boolean get() = keyLook == LOOK_MINIMAL
 
     /** リキッドグラスのゆがみ具合（0＝ゆがまない、1＝ふつう、2＝強い）。 */
     var glassRefract: Float
@@ -266,6 +278,10 @@ class ImeSettings(context: Context) {
         private const val KEY_CLEAR_CHARGE = "clear_charge_ms"
         private const val KEY_ONE_HAND = "one_hand_mode"
         private const val KEY_LIQUID_GLASS = "liquid_glass"
+        private const val KEY_KEY_LOOK = "key_look"
+        const val LOOK_GLASS = "glass"
+        const val LOOK_MINIMAL = "minimal"
+        const val LOOK_FLAT = "flat"
         private const val KEY_GLASS_REFRACT = "glass_refract"
         private const val KEY_GLASS_FROST = "glass_frost"
         private const val KEY_GLASS_LIGHT = "glass_light"
