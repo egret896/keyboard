@@ -77,6 +77,27 @@ jobs:
       - name: mozc（漢字変換エンジン）をビルド
         run: bash -x ./scripts/build_mozc.sh 2>&1 | grep -v '^+ \[\[' ; exit ${PIPESTATUS[0]}
 
+      - name: 変換の診断（コミットメッセージに [diag] があるときだけ）
+        if: contains(github.event.head_commit.message, '[diag]')
+        continue-on-error: true
+        working-directory: third_party/mozc/src
+        run: |
+          cat > /tmp/q.txt <<'Q'
+          suggest あとよそくへんかんが
+          start あとよそくへんかんが
+          suggest よそくへんかん
+          start よそくへんかん
+          start どうにかならんの
+          start にほんごをにゅうりょくする
+          suggest きょうはいいてんき
+          Q
+          sed -i 's/^ *//' /tmp/q.txt
+          "$BAZEL" run //converter:converter_main --config oss_linux --config release_build \
+            --curses=no --show_progress_rate_limit=30 -- \
+            --engine_name=oss --engine_type=mobile \
+            --engine_data_path="$PWD/bazel-bin/data_manager/oss/mozc.data" \
+            --max_candidates_to_show=6 < /tmp/q.txt 2>&1 | tail -150
+
       - name: キー配置を作る
         run: |
           python3 scripts/gen_flick_layout.py
