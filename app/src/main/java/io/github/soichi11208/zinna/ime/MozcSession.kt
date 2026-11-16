@@ -181,7 +181,9 @@ class MozcSession(context: Context) {
                             if (style.fullWidthSpace) Config.FundamentalCharacterForm.FUNDAMENTAL_FULL_WIDTH
                             else Config.FundamentalCharacterForm.FUNDAMENTAL_HALF_WIDTH
                         )
-                        .setUseTypingCorrection(true)
+                        // 打ち間違い補正は切る。ONだと「よそくへんかん」に「予測返金」のような
+                        // 関係ない候補が2番目に割り込んできて、かえって邪魔だった。
+                        .setUseTypingCorrection(false)
                         .setIncognitoMode(incognito)
                         .setUseKanaModifierInsensitiveConversion(true)
                 )
@@ -274,7 +276,6 @@ class MozcSession(context: Context) {
             cursor = preedit.cursor
         }
 
-        val reading = preeditText.toString()
         val raw = if (hasCandidateWindow()) {
             candidateWindow.candidateList.map { Candidate(it.id, it.value) }
         } else {
@@ -286,10 +287,12 @@ class MozcSession(context: Context) {
             null
         }
 
-        val tiers = tiersById(reading)
-        val (candidates, focused) = byTier(raw, focusedId) { id ->
-            tiers[id] ?: CandidateTier.MOZC_EXACT
-        }
+        // mozc が付けた順番をそのまま使う。
+        // 以前はここで「読みが完全一致する候補」を先頭に並べ替えていたが、それだと
+        // 「アトヨソクヘンカンガ」のようなカタカナ・ひらがなの言い換えが先頭に来て、
+        // mozc が1番に選んだ「あと予測変換が」が後ろへ押しやられていた。
+        val candidates = raw
+        val focused = focusedId?.let { id -> raw.indexOfFirst { it.id == id } } ?: -1
 
         return State(
             committedText = if (hasResult()) result.value else "",
