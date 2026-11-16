@@ -192,6 +192,7 @@ class ZinnaImeService : InputMethodService() {
             // the bar, so the keyboard still reaches the bottom of the screen.
             setBackgroundColor(this@ZinnaImeService.theme.backgroundColor)
             setBackgroundImage(settings.backgroundImage, settings.backgroundOpacity)
+            glass = settings.liquidGlass
             // Start from what we already know, so a rebuild triggered by a settings change is
             // padded before it draws rather than after the next dispatch — which, since the
             // window's insets did not change, may never arrive.
@@ -243,6 +244,7 @@ class ZinnaImeService : InputMethodService() {
             holdToClear = settings.holdToClear
             gaugeFillMs = settings.clearChargeMs
             oneHand = effectiveOneHand()
+            glass = settings.liquidGlass
             oneHandListener = { action ->
                 setOneHand(if (action == 0) 0 else -settings.oneHandMode)
             }

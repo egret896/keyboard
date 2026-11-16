@@ -172,7 +172,16 @@ class FlickKeyboardView @JvmOverloads constructor(
         var direction: FlickDirection = FlickDirection.CENTER,
         /** Set for repeatable keys, which emit on press instead of on release. */
         var firedOnPress: Boolean = false,
-    )
+    ) {
+        /** 今の指の位置（リキッドグラスの光と伸びに使う）。 */
+        var x: Float = downX
+        var y: Float = downY
+        val downAt: Long = SystemClock.uptimeMillis()
+    }
+
+    /** 指を離したあと、元の形に戻っていく途中のキー。 */
+    private class Releasing(val key: PlacedKey, val dx: Float, val dy: Float, val x: Float, val y: Float, val at: Long)
+    private val releasing = ArrayList<Releasing>()
 
     private var placedKeys: List<PlacedKey> = emptyList()
     private val activeTouches = mutableMapOf<Int, Touch>()
@@ -204,6 +213,7 @@ class FlickKeyboardView @JvmOverloads constructor(
         guideBackgroundPaint.color = theme.flickGuideColor
         guideLabelPaint.color = theme.flickGuideLabelColor
         gaugePaint.color = GAUGE_COLOR
+        glassShader = null
         // The parent paints the panel — a colour, or the user's background image. Painting it here
         // too would cover that image with an opaque rectangle.
     }
@@ -324,14 +334,16 @@ class FlickKeyboardView @JvmOverloads constructor(
                 canvas.restore()
             }
         }
-        if (waveT >= 0f) postInvalidateOnAnimation()
+        if (waveT >= 0f || liquidAnimating()) postInvalidateOnAnimation()
 
         // Guides go on top of every key so a guide near the edge is never clipped by a neighbour.
         for (touch in activeTouches.values) {
             if (!touch.key.spec.hasFlicks) continue
             when (guideStyle) {
-                FlickGuideStyle.PREVIEW -> drawFlickPreview(canvas, touch, radius)
+                FlickGuideStyle.PREVIEW ->
+                    if (glass) drawLiquidPreview(canvas, touch, radius) else drawFlickPreview(canvas, touch, radius)
                 FlickGuideStyle.DIRECTIONS -> drawFlickGuide(canvas, touch, radius)
+                FlickGuideStyle.NONE -> Unit
             }
         }
     }
@@ -366,6 +378,182 @@ class FlickKeyboardView @JvmOverloads constructor(
         return kotlin.math.sin(u * Math.PI).toFloat()
     }
 
+    // ------------------------------------------------------------ リキッドグラス
+    //
+    //  キー1つの断面（上が明るく、下へ消えていく細い縁）
+    //   ╭──────────╮ ← 縁の上側：白く少し光る
+    //   │  半透明   │ ← 中：うっすら白い（背景が透ける）
+    //   ╰──────────╯ ← 縁の下側：ほぼ見えない
+    //  影・ぼかし・虹色などは使わない（やりすぎ防止）。
+
+    /** リキッドグラス風に描くか。 */
+    var glass: Boolean = true
+        set(value) { field = value; invalidate() }
+
+    private val glassFill = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val glassStroke = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
+    private val glassMatrix = android.graphics.Matrix()
+    private var glassShader: android.graphics.LinearGradient? = null
+
+    /** 文字が明るい＝暗いテーマ。ガラスの濃さを変えるのに使う。 */
+    private val darkTheme: Boolean
+        get() {
+            val c = theme.labelColor
+            val lum = (0.299 * android.graphics.Color.red(c) + 0.587 * android.graphics.Color.green(c) +
+                0.114 * android.graphics.Color.blue(c)) / 255.0
+            return lum > 0.5
+        }
+
+    private fun prepareGlass() {
+        val d = resources.displayMetrics.density
+        glassStroke.strokeWidth = 1f * d
+        val top = if (darkTheme) 0x59 else 0xCC
+        val bottom = if (darkTheme) 0x0A else 0x22
+        glassShader = android.graphics.LinearGradient(
+            0f, 0f, 0f, 1f,
+            android.graphics.Color.argb(top, 255, 255, 255),
+            android.graphics.Color.argb(bottom, 255, 255, 255),
+            android.graphics.Shader.TileMode.CLAMP,
+        )
+        glassStroke.shader = glassShader
+    }
+
+    private val glassRect = RectF()
+    private val glassPath = android.graphics.Path()
+    private val specularPaint = Paint(Paint.ANTI_ALIAS_FLAG)
+
+    private fun ease(t: Float): Float { val u = 1f - t.coerceIn(0f, 1f); return 1f - u * u * u }
+
+    /**
+     * キー1つをリキッドグラスで描く。
+     *
+     *  触れる  → キーがわずかにふくらみ、指の位置に光（ハイライト）が出て、指を追いかける
+     *  ずらす  → キーが指の方へ液体のように少し伸びる
+     *  離す    → 0.2秒かけて元の形に戻り、光が消える
+     */
+    private fun drawGlassKey(canvas: Canvas, placed: PlacedKey) {
+        if (glassShader == null) prepareGlass()
+        val d = resources.displayMetrics.density
+        val now = SystemClock.uptimeMillis()
+        var strength = 0f
+        var dx = 0f
+        var dy = 0f
+        var lx = 0f
+        var ly = 0f
+        val touch = activeTouches.values.firstOrNull { it.key === placed }
+        if (touch != null) {
+            strength = ease((now - touch.downAt) / PRESS_MS)
+            dx = touch.x - touch.downX; dy = touch.y - touch.downY; lx = touch.x; ly = touch.y
+        } else {
+            val r = releasing.lastOrNull { it.key === placed }
+            if (r != null) {
+                strength = 1f - ease((now - r.at) / RELEASE_MS)
+                dx = r.dx; dy = r.dy; lx = r.x; ly = r.y
+            }
+        }
+
+        val b = placed.bounds
+        glassRect.set(b)
+        if (strength > 0f) {
+            // ふくらみ（最大 2dp）と、指の方への伸び（最大 9dp）
+            val swell = 2f * d * strength
+            glassRect.inset(-swell, -swell)
+            val limit = 9f * d
+            val sx = (dx * 0.2f).coerceIn(-limit, limit) * strength
+            val sy = (dy * 0.2f).coerceIn(-limit, limit) * strength
+            if (sx > 0) glassRect.right += sx else glassRect.left += sx
+            if (sy > 0) glassRect.bottom += sy else glassRect.top += sy
+        }
+        val r = max(theme.keyCornerRadiusDp, 11f) * d
+        val character = placed.spec.style == KeyStyle.CHARACTER
+        val rest = if (character) (if (darkTheme) 0x1C else 0xA6) else (if (darkTheme) 0x10 else 0x70)
+        val pressed = if (darkTheme) 0x34 else 0xE6
+        val alpha = (rest + (pressed - rest) * strength).toInt()
+        glassFill.color = android.graphics.Color.argb(alpha, 255, 255, 255)
+        canvas.drawRoundRect(glassRect, r, r, glassFill)
+
+        if (strength > 0f) {
+            // 指の位置の光。キーの形の内側だけに描く。
+            glassPath.reset()
+            glassPath.addRoundRect(glassRect, r, r, android.graphics.Path.Direction.CW)
+            canvas.save()
+            canvas.clipPath(glassPath)
+            val radius = max(glassRect.width(), glassRect.height()) * 0.85f
+            val peak = ((if (darkTheme) 0x48 else 0x70) * strength).toInt()
+            specularPaint.shader = android.graphics.RadialGradient(
+                lx, ly, radius,
+                intArrayOf(android.graphics.Color.argb(peak, 255, 255, 255), android.graphics.Color.argb(0, 255, 255, 255)),
+                null, android.graphics.Shader.TileMode.CLAMP,
+            )
+            canvas.drawCircle(lx, ly, radius, specularPaint)
+            canvas.restore()
+        }
+
+        glassMatrix.setScale(1f, glassRect.height())
+        glassMatrix.postTranslate(0f, glassRect.top)
+        glassShader?.setLocalMatrix(glassMatrix)
+        val inset = glassStroke.strokeWidth / 2f
+        canvas.drawRoundRect(glassRect.left + inset, glassRect.top + inset,
+            glassRect.right - inset, glassRect.bottom - inset, r, r, glassStroke)
+    }
+
+    /** 押した直後・離した直後の動きが残っているか（残っていれば次の画面も描く）。 */
+    private fun liquidAnimating(): Boolean {
+        if (!glass) return false
+        val now = SystemClock.uptimeMillis()
+        releasing.removeAll { now - it.at > RELEASE_MS }
+        return releasing.isNotEmpty() || activeTouches.values.any { now - it.downAt < PRESS_MS }
+    }
+
+    /**
+     * フリック中の吹き出しを、キーから「しずく」がにゅっと伸びて離れていくように描く。
+     *
+     *      ╭────╮   ← 吹き出し（ガラス）
+     *       ╲  ╱    ← くびれ（液体のつながり）
+     *      ╭────╮   ← 押しているキー
+     */
+    private fun drawLiquidPreview(canvas: Canvas, touch: Touch, radius: Float) {
+        val output = touch.key.spec.output(touch.direction) ?: return
+        val d = resources.displayMetrics.density
+        val bounds = touch.key.bounds
+        val gap = 8f * d
+        val grow = ease((SystemClock.uptimeMillis() - touch.downAt) / PRESS_MS)
+        previewRect.set(bounds)
+        previewRect.offset(0f, -(bounds.height() + gap) * grow)
+        clampIntoView(previewRect)
+        val r = max(theme.keyCornerRadiusDp, 11f) * d
+
+        // くびれ：キーの上辺と吹き出しの下辺を、内側に反ったカーブでつなぐ
+        val neckTop = previewRect.bottom
+        val neckBottom = bounds.top
+        if (neckBottom - neckTop > 2f * d && kotlin.math.abs(previewRect.centerX() - bounds.centerX()) < 1f) {
+            val cx = bounds.centerX()
+            val half = bounds.width() * 0.22f
+            val pinch = bounds.width() * 0.09f
+            val midY = (neckTop + neckBottom) / 2f
+            glassPath.reset()
+            glassPath.moveTo(cx - half, neckTop - r * 0.5f)
+            glassPath.quadTo(cx - pinch, midY, cx - half, neckBottom + r * 0.5f)
+            glassPath.lineTo(cx + half, neckBottom + r * 0.5f)
+            glassPath.quadTo(cx + pinch, midY, cx + half, neckTop - r * 0.5f)
+            glassPath.close()
+            guideBackgroundPaint.alpha = 0xB0
+            canvas.drawPath(glassPath, guideBackgroundPaint)
+        }
+
+        guideBackgroundPaint.alpha = 0xEE
+        canvas.drawRoundRect(previewRect, r, r, guideBackgroundPaint)
+        guideBackgroundPaint.alpha = 255
+        glassMatrix.setScale(1f, previewRect.height())
+        glassMatrix.postTranslate(0f, previewRect.top)
+        glassShader?.setLocalMatrix(glassMatrix)
+        canvas.drawRoundRect(previewRect, r, r, glassStroke)
+        guideLabelPaint.color = theme.flickGuideSelectedLabelColor
+        val baseline =
+            previewRect.centerY() - (guideLabelPaint.descent() + guideLabelPaint.ascent()) / 2f
+        canvas.drawText(output.label, previewRect.centerX(), baseline, guideLabelPaint)
+    }
+
     private fun drawKey(canvas: Canvas, placed: PlacedKey, radius: Float) {
             // With flat keys only the pressed one gets a shape: the resting keys are their labels
             // and nothing else, so the panel (or the user's background image) shows through.
@@ -375,7 +563,8 @@ class FlickKeyboardView @JvmOverloads constructor(
                 placed.spec.style == KeyStyle.CHARACTER -> keyPaint
                 else -> modifierPaint
             }
-            if (paint != null) canvas.drawRoundRect(placed.bounds, radius, radius, paint)
+            if (glass) drawGlassKey(canvas, placed)
+            else if (paint != null) canvas.drawRoundRect(placed.bounds, radius, radius, paint)
             if (placed === gaugeKey) {
                 drawGauge(canvas, placed, radius)
                 val hintBaseline = placed.bounds.centerY() - (labelPaint.descent() + labelPaint.ascent()) / 2f
@@ -624,6 +813,9 @@ class FlickKeyboardView @JvmOverloads constructor(
             }
             return
         }
+        touch.x = x
+        touch.y = y
+        if (glass) invalidate() // 光と伸びが指を追いかける
         val direction = resolveDirection(touch, x, y)
         if (direction != touch.direction) {
             touch.direction = direction
@@ -636,6 +828,7 @@ class FlickKeyboardView @JvmOverloads constructor(
 
     private fun onPointerUp(pointerId: Int) {
         val touch = activeTouches.remove(pointerId) ?: return
+        if (glass) releasing += Releasing(touch.key, touch.x - touch.downX, touch.y - touch.downY, touch.x, touch.y, SystemClock.uptimeMillis())
         cancelPanelLongPress()
         cancelRepeat()
         cancelGauge()
@@ -750,6 +943,10 @@ class FlickKeyboardView @JvmOverloads constructor(
 
         /** 片手モードのときのキーボードの幅（画面幅に対する割合）。 */
         private const val ONE_HAND_RATIO = 0.8f
+
+        /** リキッドグラス：押したときにふくらむ時間と、離して戻る時間。 */
+        private const val PRESS_MS = 140f
+        private const val RELEASE_MS = 220f
 
         /** 長押しと判定するまでの時間。 */
         private const val LONG_PRESS_MS = 450L

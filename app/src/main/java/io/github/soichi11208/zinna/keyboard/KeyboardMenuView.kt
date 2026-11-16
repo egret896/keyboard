@@ -51,9 +51,11 @@ class KeyboardMenuView(
                     gravity = Gravity.CENTER
                     setTextColor(theme.labelColor)
                     setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
+                    // ガラス調：うっすら白い半透明＋細い白い縁
                     background = GradientDrawable().apply {
-                        cornerRadius = theme.keyCornerRadiusDp * density
-                        setColor(theme.modifierKeyColor)
+                        cornerRadius = 12f * density
+                        setColor(android.graphics.Color.argb(0x1F, 255, 255, 255))
+                        setStroke((1 * density).toInt().coerceAtLeast(1), android.graphics.Color.argb(0x40, 255, 255, 255))
                     }
                     setOnClickListener {
                         it.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)

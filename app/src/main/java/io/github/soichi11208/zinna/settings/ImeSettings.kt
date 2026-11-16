@@ -91,6 +91,14 @@ class ImeSettings(context: Context) {
             bumpRevision()
         }
 
+    /** リキッドグラス風の見た目（半透明のキー）。 */
+    var liquidGlass: Boolean
+        get() = prefs.getBoolean(KEY_LIQUID_GLASS, true)
+        set(value) {
+            prefs.edit().putBoolean(KEY_LIQUID_GLASS, value).apply()
+            bumpRevision()
+        }
+
     /** 片手モード。0 = ふつう、-1 = 左に寄せる、1 = 右に寄せる。 */
     var oneHandMode: Int
         get() = prefs.getInt(KEY_ONE_HAND, 0)
@@ -232,6 +240,7 @@ class ImeSettings(context: Context) {
         private const val KEY_AUTO_BRACKET = "auto_bracket"
         private const val KEY_CLEAR_CHARGE = "clear_charge_ms"
         private const val KEY_ONE_HAND = "one_hand_mode"
+        private const val KEY_LIQUID_GLASS = "liquid_glass"
         private const val KEY_ONE_HAND_SIDE = "one_hand_side"
         const val DEFAULT_FLICK_THRESHOLD_DP = 24f
         const val MIN_FLICK_THRESHOLD_DP = 10f

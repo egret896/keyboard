@@ -145,6 +145,7 @@ private fun MyKeyboardCard() {
     var holdToClear by remember { mutableStateOf(settings.holdToClear) }
     var charge by remember { mutableStateOf(settings.clearChargeMs.toFloat()) }
     var autoBracket by remember { mutableStateOf(settings.autoBracket) }
+    var glass by remember { mutableStateOf(settings.liquidGlass) }
 
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -179,6 +180,14 @@ private fun MyKeyboardCard() {
                     settings.splitWhenWide = it
                 })
             }
+
+            HorizontalDivider()
+
+            SettingSwitch(
+                title = "リキッドグラス",
+                body = "キーを半透明のガラス調にします。OFFにすると、前の平らな見た目に戻ります",
+                checked = glass,
+            ) { glass = it; settings.liquidGlass = it }
 
             HorizontalDivider()
 
@@ -614,6 +623,7 @@ private fun KeyboardCard() {
             for ((option, label) in listOf(
                 FlickGuideStyle.PREVIEW to "離したら入る文字だけ",
                 FlickGuideStyle.DIRECTIONS to "4方向すべて",
+                FlickGuideStyle.NONE to "表示しない",
             )) {
                 val onSelect = {
                     guide = option

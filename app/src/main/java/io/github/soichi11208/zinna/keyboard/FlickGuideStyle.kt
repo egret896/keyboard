@@ -12,7 +12,10 @@ enum class FlickGuideStyle {
     PREVIEW,
 
     /** The full cross of every direction the key offers, with the current one highlighted. */
-    DIRECTIONS;
+    DIRECTIONS,
+
+    /** ポップアップを出さない。 */
+    NONE;
 
     companion object {
         fun of(name: String?): FlickGuideStyle = entries.firstOrNull { it.name == name } ?: PREVIEW
