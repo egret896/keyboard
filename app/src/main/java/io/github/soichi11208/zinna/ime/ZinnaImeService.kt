@@ -265,6 +265,8 @@ class ZinnaImeService : InputMethodService() {
             oneHand = effectiveOneHand()
             glass = settings.liquidGlass
             minimal = settings.minimalKeys
+            pressShape = settings.pressShape
+            pressColor = settings.pressColor
             memento = settings.mementoKeys
             mementoStyle = settings.mementoStyle
             lensParams = io.github.soichi11208.zinna.keyboard.Lens.Params(

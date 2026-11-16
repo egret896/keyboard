@@ -131,6 +131,7 @@ class FlickKeyboardView @JvmOverloads constructor(
             val key = gaugeKey ?: return
             if (gaugeProgress() >= 1f) {
                 gaugeKey = null
+                gaugeDone = true // 指を離すまで、もう一度ためない（押し続けてもアニメが繰り返さない）
                 performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
                 clearAllListener?.invoke()
                 playClearWave()
@@ -147,6 +148,9 @@ class FlickKeyboardView @JvmOverloads constructor(
         val elapsed = SystemClock.uptimeMillis() - gaugeStartedAt - GAUGE_DELAY_MS
         return (elapsed.toFloat() / gaugeFillMs).coerceIn(0f, 1f)
     }
+
+    /** 全削除が終わったあと、指を離すまで true。 */
+    private var gaugeDone = false
 
     private fun startGauge(key: PlacedKey) {
         gaugeKey = key
@@ -207,7 +211,7 @@ class FlickKeyboardView @JvmOverloads constructor(
 
     private fun applyTheme() {
         keyPaint.color = theme.keyColor
-        keyPressedPaint.color = theme.keyPressedColor
+        keyPressedPaint.color = if (pressColor != 0) pressColor else theme.keyPressedColor
         modifierPaint.color = theme.modifierKeyColor
         labelPaint.color = theme.labelColor
         guideBackgroundPaint.color = theme.flickGuideColor
@@ -569,6 +573,23 @@ class FlickKeyboardView @JvmOverloads constructor(
         canvas.restore()
     }
 
+    /** 押したときの形。0＝テーマの角丸、1＝四角、2＝丸（まるい端）。ふつう・ミニマリストで使う。 */
+    var pressShape: Int = 0
+        set(value) { field = value; invalidate() }
+
+    /** 押したときの色。0 ならテーマの色。 */
+    var pressColor: Int = 0
+        set(value) { field = value; keyPressedPaint.color = if (value != 0) value else theme.keyPressedColor; invalidate() }
+
+    private fun drawPressed(canvas: Canvas, b: RectF, radius: Float) {
+        val r = when (pressShape) {
+            1 -> 0f
+            2 -> kotlin.math.min(b.width(), b.height()) / 2f
+            else -> radius
+        }
+        canvas.drawRoundRect(b, r, r, keyPressedPaint)
+    }
+
     /** ミニマリスト（罫線だけ）で描くか。リキッドグラスより優先しない（glass が true なら glass）。 */
     var minimal: Boolean = false
         set(value) { field = value; invalidate() }
@@ -925,8 +946,9 @@ class FlickKeyboardView @JvmOverloads constructor(
             } else if (glass) drawGlassKey(canvas, placed)
             else if (minimal) {
                 // 押している間だけ、うっすら面を出す
-                if (isPressed(placed)) canvas.drawRoundRect(placed.bounds, radius, radius, keyPressedPaint)
-            } else if (paint != null) canvas.drawRoundRect(placed.bounds, radius, radius, paint)
+                if (isPressed(placed)) drawPressed(canvas, placed.bounds, radius)
+            } else if (paint === keyPressedPaint) drawPressed(canvas, placed.bounds, radius)
+            else if (paint != null) canvas.drawRoundRect(placed.bounds, radius, radius, paint)
             if (placed === gaugeKey) {
                 drawGauge(canvas, placed, if (glass) kotlin.math.min(placed.bounds.width(), placed.bounds.height()) / 2f else radius)
                 val hintBaseline = placed.bounds.centerY() - (labelPaint.descent() + labelPaint.ascent()) / 2f
@@ -1136,6 +1158,7 @@ class FlickKeyboardView @JvmOverloads constructor(
         cancelRepeat()
         cancelGauge()
 
+        gaugeDone = false
         val touch = Touch(key, x, y)
         activeTouches[pointerId] = touch
         if (theme.hapticFeedback) performHapticFeedback(android.view.HapticFeedbackConstants.KEYBOARD_TAP)
@@ -1167,7 +1190,7 @@ class FlickKeyboardView @JvmOverloads constructor(
             val dx = x - touch.downX
             val dy = y - touch.downY
             val left = dx < -flickThresholdPx && -dx > kotlin.math.abs(dy)
-            if (left && gaugeKey == null) {
+            if (left && gaugeKey == null && !gaugeDone) {
                 cancelRepeat()
                 startGauge(touch.key)
             } else if (!left && gaugeKey != null) {

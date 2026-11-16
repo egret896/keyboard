@@ -9,7 +9,11 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -147,6 +151,8 @@ private fun MyKeyboardCard() {
     var charge by remember { mutableStateOf(settings.clearChargeMs.toFloat()) }
     var autoBracket by remember { mutableStateOf(settings.autoBracket) }
     var twoLines by remember { mutableStateOf(settings.candidateTwoLines) }
+    var pressShape by remember { mutableStateOf(settings.pressShape) }
+    var pressColor by remember { mutableStateOf(settings.pressColor) }
     var look by remember { mutableStateOf(settings.keyLook) }
     val glass = look == ImeSettings.LOOK_GLASS
     var refract by remember { mutableStateOf(settings.glassRefract) }
@@ -207,6 +213,19 @@ private fun MyKeyboardCard() {
                 } else {
                     OutlinedButton(onClick = onSelect, modifier = Modifier.fillMaxWidth()) { Text(label) }
                 }
+            }
+
+            if (look == ImeSettings.LOOK_FLAT || look == ImeSettings.LOOK_MINIMAL) {
+                Text("押したときの形", style = MaterialTheme.typography.bodyMedium)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    for ((value, label) in listOf(0 to "角丸", 1 to "四角", 2 to "丸")) {
+                        val pick = { pressShape = value; settings.pressShape = value }
+                        if (pressShape == value) Button(onClick = pick) { Text(label) }
+                        else OutlinedButton(onClick = pick) { Text(label) }
+                    }
+                }
+                Text("押したときの色", style = MaterialTheme.typography.bodyMedium)
+                PressColorPicker(pressColor) { pressColor = it; settings.pressColor = it }
             }
 
             if (glass) {
@@ -901,4 +920,42 @@ private fun describeEngine(context: Context): String {
         ?: return "読み込み失敗 — この ABI 用の libmozc.so がありません (scripts/build_mozc.sh を実行)"
     val version = engine.dataVersion.ifEmpty { "unknown" }
     return "オフライン動作中 / 辞書バージョン $version"
+}
+
+
+/** 押したときの色の見本。左端の「標準」はテーマの色。 */
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+@Composable
+private fun PressColorPicker(selected: Int, onPick: (Int) -> Unit) {
+    val colors = listOf(
+        0,
+        0x66FFFFFF, 0x99FFFFFF.toInt(), 0x66000000, 0x9916CFFB.toInt(), 0x993B82F6.toInt(),
+        0x9922C55E.toInt(), 0x99FACC15.toInt(), 0x99F97316.toInt(), 0x99EF4444.toInt(),
+        0x99EC4899.toInt(), 0x99A855F7.toInt(), 0x999CA3AF.toInt(),
+    )
+    androidx.compose.foundation.layout.FlowRow(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        for (c in colors) {
+            val shape = androidx.compose.foundation.shape.CircleShape
+            androidx.compose.foundation.layout.Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .size(40.dp)
+                    .then(
+                        if (c == selected) Modifier.border(3.dp, MaterialTheme.colorScheme.primary, shape)
+                        else Modifier.border(1.dp, MaterialTheme.colorScheme.outline, shape)
+                    )
+                    .padding(4.dp)
+                    .background(
+                        if (c == 0) MaterialTheme.colorScheme.surfaceVariant else androidx.compose.ui.graphics.Color(c),
+                        shape,
+                    )
+                    .clickable { onPick(c) },
+            ) {
+                if (c == 0) Text("標準", style = MaterialTheme.typography.labelSmall)
+            }
+        }
+    }
 }

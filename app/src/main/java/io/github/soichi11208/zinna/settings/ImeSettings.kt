@@ -169,6 +169,16 @@ class ImeSettings(context: Context) {
             bumpRevision()
         }
 
+    /** 押したときの形（0＝角丸、1＝四角、2＝丸）。 */
+    var pressShape: Int
+        get() = prefs.getInt(KEY_PRESS_SHAPE, 0)
+        set(value) { prefs.edit().putInt(KEY_PRESS_SHAPE, value).apply(); bumpRevision() }
+
+    /** 押したときの色（ARGB。0＝テーマの色）。 */
+    var pressColor: Int
+        get() = prefs.getInt(KEY_PRESS_COLOR, 0)
+        set(value) { prefs.edit().putInt(KEY_PRESS_COLOR, value).apply(); bumpRevision() }
+
     /** 予測変換を2行で出すか（false＝1行で横にスクロール）。 */
     var candidateTwoLines: Boolean
         get() = prefs.getBoolean(KEY_CANDIDATE_TWO_LINES, false)
@@ -298,6 +308,8 @@ class ImeSettings(context: Context) {
         private const val KEY_AUTO_BRACKET = "auto_bracket"
         private const val KEY_CLEAR_CHARGE = "clear_charge_ms"
         private const val KEY_CANDIDATE_TWO_LINES = "candidate_two_lines"
+        private const val KEY_PRESS_SHAPE = "press_shape"
+        private const val KEY_PRESS_COLOR = "press_color"
         private const val KEY_ONE_HAND = "one_hand_mode"
         private const val KEY_LIQUID_GLASS = "liquid_glass"
         private const val KEY_KEY_LOOK = "key_look"
