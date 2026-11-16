@@ -82,19 +82,19 @@ jobs:
         continue-on-error: true
         working-directory: third_party/mozc/src
         run: |
+          "$BAZEL" build //converter:converter_main //session:session_handler_main \
+            --config oss_linux --config release_build --curses=no > /tmp/diag_build.log 2>&1 || tail -40 /tmp/diag_build.log
           echo "=== converter_main ==="
           printf '%s\n' 'start あとよそくへんかんが' 'start よそくへんかん' 'start どうにかならんの' > /tmp/q.txt
-          "$BAZEL" run //converter:converter_main --config oss_linux --config release_build \
-            --curses=no --show_progress_rate_limit=60 -- \
-            --engine_name=oss --engine_type=mobile \
+          ./bazel-bin/converter/converter_main --engine_name=oss --engine_type=mobile \
             --engine_data_path="$PWD/bazel-bin/data_manager/oss/mozc.data" \
-            --max_candidates_to_show=4 < /tmp/q.txt 2>&1 | grep -E '^(-----|[^ ]|  [0-9]+/)' | head -80
+            --max_candidates_to_show=4 < /tmp/q.txt 2>/dev/null | grep -E '^(-----|[^ ]|  [0-9]+/)' | head -120
           echo "=== session_handler_main (app-like flick input) ==="
           mkdir -p /tmp/prof
-          "$BAZEL" run //session:session_handler_main --config oss_linux --config release_build \
-            --curses=no --show_progress_rate_limit=60 -- \
+          ./bazel-bin/session/session_handler_main \
             --input="$GITHUB_WORKSPACE/scripts/diag/flick_scenario.tsv" \
-            --dictionary=oss --profile=/tmp/prof 2>&1 | grep -vE '^(INFO|WARNING|Loading|Analyzing|Target|  bazel|Executing|Running)' | head -400
+            --dictionary=oss --profile=/tmp/prof 2>/dev/null | head -400
+          echo "=== end diag ==="
 
       - name: キー配置を作る
         run: |
