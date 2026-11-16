@@ -33,11 +33,11 @@ import kotlin.math.sqrt
 internal object Lens {
     /** 効果の強さ（デザイントークン）。ここだけ変えれば全体の見た目が変わる。 */
     object Tokens {
-        const val BEVEL = 0.30f          // 丸い縁の幅（キーの高さの半分に対する割合）
-        const val REFRACT = 1.1f         // 屈折の強さ
-        const val DISPERSION = 0.08f     // 色ずれ
-        const val MAGNIFY = 0.05f        // まんなかの拡大
-        const val BLUR_DP = 2.0f         // 背景ぼかし（Regular）
+        const val BEVEL = 0.55f          // 丸い縁の幅（キーの高さの半分に対する割合）
+        const val REFRACT = 2.2f         // 屈折の強さ
+        const val DISPERSION = 0.10f     // 色ずれ
+        const val MAGNIFY = 0.15f        // まんなかの拡大
+        const val BLUR_DP = 0.8f         // 背景ぼかし（Regular）
         const val SCATTER = 0.06f        // 光の散乱
         const val SPEC = 0.85f           // 縁の光の強さ
         const val RIM_DP = 1.3f          // 縁の光の幅（縁にぴったり沿う細い光）
