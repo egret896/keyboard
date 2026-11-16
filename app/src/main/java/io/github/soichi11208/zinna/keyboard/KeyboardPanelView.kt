@@ -55,6 +55,10 @@ class KeyboardPanelView(context: Context) : LinearLayout(context) {
     var memento: Boolean = false
         set(value) { field = value; mementoBackdrop?.recycle(); mementoBackdrop = null; invalidate() }
 
+    /** MEMENTO MORI の種類（0=海の青, 1=満月, 2=大胆, 3=線だけ）。 */
+    var mementoStyle: Int = 0
+        set(value) { if (field != value) { field = value; mementoBackdrop?.recycle(); mementoBackdrop = null; invalidate() } }
+
     private var mementoBackdrop: Bitmap? = null
 
     /** 背景は大きさが変わったときだけ1枚の画像に描いておき、毎回はそれを貼るだけ。 */
@@ -67,12 +71,28 @@ class KeyboardPanelView(context: Context) : LinearLayout(context) {
             val c = Canvas(bmp)
             val w = width.toFloat(); val h = height.toFloat(); val d = resources.displayMetrics.density
             val p = Paint(Paint.ANTI_ALIAS_FLAG)
-            p.shader = android.graphics.LinearGradient(0f, 0f, 0f, h,
-                intArrayOf(0xFF0B3D91.toInt(), 0xFF062258.toInt(), 0xFF020A1F.toInt()), floatArrayOf(0f, 0.55f, 1f),
+            val style = mementoStyle
+            val colors = when (style) {
+                1 -> intArrayOf(0xFF0A1630.toInt(), 0xFF050C1C.toInt(), 0xFF000208.toInt())
+                3 -> intArrayOf(0xFF05143A.toInt(), 0xFF041030.toInt(), 0xFF030A1E.toInt())
+                else -> intArrayOf(0xFF0B3D91.toInt(), 0xFF062258.toInt(), 0xFF020A1F.toInt())
+            }
+            p.shader = android.graphics.LinearGradient(0f, 0f, 0f, h, colors, floatArrayOf(0f, 0.55f, 1f),
                 android.graphics.Shader.TileMode.CLAMP)
             c.drawRect(0f, 0f, w, h, p)
-            // 上から差しこむ光の帯
-            for (i in 0 until 6) {
+            if (style == 1) {
+                // 満月：右上に月と、そのまわりのぼんやりした光
+                val mx = w * 0.8f; val my = h * 0.16f
+                p.shader = android.graphics.RadialGradient(mx, my, h * 0.37f,
+                    intArrayOf(0x8CFFF8C8.toInt(), 0x2EFFF0B4, 0x00FFF0B4), floatArrayOf(0f, 0.2f, 1f),
+                    android.graphics.Shader.TileMode.CLAMP)
+                c.drawRect(0f, 0f, w, h, p)
+                p.shader = null
+                p.color = 0xD9FFFAD7.toInt()
+                c.drawCircle(mx, my, h * 0.086f, p)
+            }
+            // 上から差しこむ光の帯（海の青・大胆だけ）
+            if (style == 0 || style == 2) for (i in 0 until 6) {
                 c.save(); c.translate(w * (0.14f + i * 0.157f), 0f); c.rotate(14f)
                 p.shader = android.graphics.LinearGradient(0f, 0f, 0f, h,
                     0x1A7DE6FD, 0x007DE6FD, android.graphics.Shader.TileMode.CLAMP)
@@ -82,7 +102,7 @@ class KeyboardPanelView(context: Context) : LinearLayout(context) {
             }
             p.shader = null
             // 水面のゆらめき（波の線）
-            p.style = Paint.Style.STROKE; p.strokeWidth = 0.8f * d; p.color = 0x127DE6FD
+            p.style = Paint.Style.STROKE; p.strokeWidth = 0.8f * d; p.color = if (style == 1) 0x0DFFF0BE else 0x127DE6FD
             var y = 16f * d
             val path = android.graphics.Path()
             while (y < h) {
@@ -101,7 +121,13 @@ class KeyboardPanelView(context: Context) : LinearLayout(context) {
             p.style = Paint.Style.FILL; p.color = 0x0CFFFFFF
             p.textSize = h * 0.24f; p.textSkewX = -0.25f; p.isFakeBoldText = true
             p.typeface = android.graphics.Typeface.create(android.graphics.Typeface.SANS_SERIF, android.graphics.Typeface.BOLD)
-            c.save(); c.translate(-8f * d, h - 10f * d); c.rotate(-3.5f)
+            if (style == 2) {
+                // 大胆：大きく斜めに、水色で
+                p.color = 0x1416CFFB; p.textSize = h * 0.29f
+                c.save(); c.translate(w * 0.074f, h * 1.06f); c.rotate(-28f)
+            } else {
+                c.save(); c.translate(-8f * d, h - 10f * d); c.rotate(-3.5f)
+            }
             c.drawText("MEMENTO MORI", 0f, 0f, p)
             c.restore()
             mementoBackdrop = bmp

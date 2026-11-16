@@ -415,6 +415,19 @@ class FlickKeyboardView @JvmOverloads constructor(
     var memento: Boolean = false
         set(value) { field = value; invalidate() }
 
+    /**
+     * MEMENTO MORI の種類。
+     *  0 = A 海の青（青い札）　1 = B 満月（夜の黒と月の金）
+     *  2 = C 大胆（白い札・大きく傾く）　3 = D 線だけ（札なし・下線と印）
+     */
+    var mementoStyle: Int = 0
+        set(value) { field = value; invalidate() }
+
+    private val mmAccent: Int get() = if (mementoStyle == 1) 0xFFFFE9A8.toInt() else 0xFF16CFFB.toInt()
+    private val mmAccent2: Int get() = if (mementoStyle == 1) 0xFFFFF6D6.toInt() else 0xFF77FEFC.toInt()
+    /** 札の傾き（斜めの度合い）。大胆は強め。 */
+    private val mmSkew: Float get() = if (mementoStyle == 2) 0.4f else 0.25f
+
     private val mmPaint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val mmLabel = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         textAlign = Paint.Align.CENTER
@@ -428,12 +441,13 @@ class FlickKeyboardView @JvmOverloads constructor(
     private fun mmTilt(k: PlacedKey): Float {
         var n = (k.bounds.left * 31f + k.bounds.top * 17f).toInt() * 374761393
         n = (n xor (n ushr 13)) * 1274126177
-        return (((n xor (n ushr 16)) and 0xffff) / 65535f - 0.5f) * 5f
+        val amp = if (mementoStyle == 2) 9f else 5f
+        return (((n xor (n ushr 16)) and 0xffff) / 65535f - 0.5f) * amp
     }
 
     /** 札の形（平行四辺形）を [mmPath] に作る。中心が (0,0)。 */
     private fun mmCard(w: Float, h: Float) {
-        val skew = h / 2f * 0.25f        // 約14°
+        val skew = h / 2f * mmSkew        // 約14°（大胆は約22°）
         mmPath.reset()
         mmPath.moveTo(-w / 2f + skew, -h / 2f)
         mmPath.lineTo(w / 2f + skew, -h / 2f)
@@ -456,15 +470,30 @@ class FlickKeyboardView @JvmOverloads constructor(
         mmCard(w, h)
         if (!pressed) {
             mmPaint.shader = null
-            mmPaint.color = if (character) 0x9E031238.toInt() else 0x2116CFFB
-            canvas.drawPath(mmPath, mmPaint)
-            // 左の縁の水色の線
-            val skew = h / 2f * 0.25f
-            mmPaint.color = 0xFF16CFFB.toInt()
-            mmPaint.strokeWidth = 2f * d
-            mmPaint.style = Paint.Style.STROKE
-            canvas.drawLine(-w / 2f + skew, -h / 2f, -w / 2f - skew, h / 2f, mmPaint)
-            mmPaint.style = Paint.Style.FILL
+            val skew = h / 2f * mmSkew
+            if (mementoStyle == 3) {
+                // 線だけ：下に細い白線、その左端に短い水色の印
+                mmPaint.style = Paint.Style.STROKE
+                mmPaint.strokeWidth = 0.6f * d
+                mmPaint.color = 0x2EFFFFFF
+                canvas.drawLine(-w / 2f - skew, h / 2f, w / 2f - skew, h / 2f, mmPaint)
+                mmPaint.style = Paint.Style.FILL
+                mmPaint.color = mmAccent
+                canvas.drawRect(-w / 2f - skew, h / 2f - 0.8f * d, -w / 2f - skew + 4f * d, h / 2f + 0.2f * d, mmPaint)
+            } else {
+                mmPaint.color = when (mementoStyle) {
+                    1 -> if (character) 0xB30A1022.toInt() else 0x1AFFE9A8
+                    2 -> if (character) 0xEBFFFFFF.toInt() else 0xBF031238.toInt()
+                    else -> if (character) 0x9E031238.toInt() else 0x2116CFFB
+                }
+                canvas.drawPath(mmPath, mmPaint)
+                // 左の縁の線（大胆は太い）
+                mmPaint.color = mmAccent
+                mmPaint.strokeWidth = (if (mementoStyle == 2) 3.5f else 2f) * d
+                mmPaint.style = Paint.Style.STROKE
+                canvas.drawLine(-w / 2f + skew, -h / 2f, -w / 2f - skew, h / 2f, mmPaint)
+                mmPaint.style = Paint.Style.FILL
+            }
         } else {
             // 浮き上がった影＋水色の札
             canvas.save(); canvas.translate(5f * d, 5f * d)
@@ -472,7 +501,7 @@ class FlickKeyboardView @JvmOverloads constructor(
             canvas.drawPath(mmPath, mmPaint)
             canvas.restore()
             mmPaint.shader = android.graphics.LinearGradient(0f, -h / 2f, 0f, h / 2f,
-                0xFF77FEFC.toInt(), 0xFF16CFFB.toInt(), android.graphics.Shader.TileMode.CLAMP)
+                mmAccent2, mmAccent, android.graphics.Shader.TileMode.CLAMP)
             canvas.drawPath(mmPath, mmPaint)
             mmPaint.shader = null
         }
@@ -480,7 +509,7 @@ class FlickKeyboardView @JvmOverloads constructor(
             mmLabel.textSize = labelPaint.textSize * (if (character) 1.12f else 0.95f)
             val baseline = -(mmLabel.descent() + mmLabel.ascent()) / 2f
             if (!pressed) {
-                mmLabel.color = android.graphics.Color.WHITE
+                mmLabel.color = if (mementoStyle == 2 && character) 0xFF061A44.toInt() else android.graphics.Color.WHITE
                 canvas.drawText(label, 0f, baseline, mmLabel)
             } else {
                 mmLabel.color = android.graphics.Color.BLACK

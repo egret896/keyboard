@@ -194,6 +194,7 @@ class ZinnaImeService : InputMethodService() {
             setBackgroundImage(settings.backgroundImage, settings.backgroundOpacity)
             glass = settings.liquidGlass
             memento = settings.mementoKeys
+            mementoStyle = settings.mementoStyle
             // Start from what we already know, so a rebuild triggered by a settings change is
             // padded before it draws rather than after the next dispatch — which, since the
             // window's insets did not change, may never arrive.
@@ -253,6 +254,7 @@ class ZinnaImeService : InputMethodService() {
             glass = settings.liquidGlass
             minimal = settings.minimalKeys
             memento = settings.mementoKeys
+            mementoStyle = settings.mementoStyle
             lensParams = io.github.soichi11208.zinna.keyboard.Lens.Params(
                 refract = settings.glassRefract, frost = settings.glassFrost,
                 light = settings.glassLight, shadow = settings.glassShadow,
@@ -301,10 +303,11 @@ class ZinnaImeService : InputMethodService() {
         val sized = base.copy(keyHeightDp = base.keyHeightDp * settings.keyHeightScale)
         val themed = if (settings.pureBlack) sized.asPureBlack() else sized
         // MEMENTO MORI：色は固定（深い青に白い文字。押した時は水色）
+        val moon = settings.mementoStyle == 1
         return if (settings.mementoKeys) themed.copy(
-            backgroundColor = 0xFF062258.toInt(),
+            backgroundColor = when (settings.mementoStyle) { 1 -> 0xFF050C1C.toInt(); 3 -> 0xFF041030.toInt(); else -> 0xFF062258.toInt() },
             labelColor = android.graphics.Color.WHITE,
-            keyPressedColor = 0xFF16CFFB.toInt(),
+            keyPressedColor = if (moon) 0xFFFFE9A8.toInt() else 0xFF16CFFB.toInt(),
             flickGuideColor = android.graphics.Color.WHITE,
             flickGuideLabelColor = android.graphics.Color.BLACK,
             flickGuideSelectedLabelColor = android.graphics.Color.BLACK,

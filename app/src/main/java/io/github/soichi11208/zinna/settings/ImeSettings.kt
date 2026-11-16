@@ -116,7 +116,15 @@ class ImeSettings(context: Context) {
         set(value) { keyLook = if (value) LOOK_GLASS else LOOK_FLAT }
 
     /** MEMENTO MORI（深い海の青と、斜めに傾いた札のキー）。 */
-    val mementoKeys: Boolean get() = keyLook == LOOK_MEMENTO
+    val mementoKeys: Boolean get() = keyLook.startsWith(LOOK_MEMENTO)
+
+    /** MEMENTO MORI の種類（0=A 海の青, 1=B 満月, 2=C 大胆, 3=D 線だけ）。 */
+    val mementoStyle: Int get() = when (keyLook) {
+        LOOK_MEMENTO_MOON -> 1
+        LOOK_MEMENTO_BOLD -> 2
+        LOOK_MEMENTO_LINE -> 3
+        else -> 0
+    }
 
     /** ミニマリスト（キーの間に細い線だけ）。 */
     val minimalKeys: Boolean get() = keyLook == LOOK_MINIMAL
@@ -288,6 +296,9 @@ class ImeSettings(context: Context) {
         const val LOOK_MINIMAL = "minimal"
         const val LOOK_FLAT = "flat"
         const val LOOK_MEMENTO = "memento"
+        const val LOOK_MEMENTO_MOON = "memento_moon"
+        const val LOOK_MEMENTO_BOLD = "memento_bold"
+        const val LOOK_MEMENTO_LINE = "memento_line"
         private const val KEY_GLASS_REFRACT = "glass_refract"
         private const val KEY_GLASS_FROST = "glass_frost"
         private const val KEY_GLASS_LIGHT = "glass_light"
