@@ -209,8 +209,8 @@ private fun MyKeyboardCard() {
             HorizontalDivider()
 
             SettingSwitch(
-                title = "⌫長押しで全削除",
-                body = "⌫を押し続けると背景に赤いゲージがたまり、満タンで入力欄の文字を全部消します。OFFだと長押しで1文字ずつ連続で消します",
+                title = "⌫を左にずらして全削除",
+                body = "⌫を押したまま指を左にずらして止めると、赤いゲージがたまり、満タンで入力欄の文字を全部消します。普通の長押しは1文字ずつ連続で消します",
                 checked = holdToClear,
             ) { holdToClear = it; settings.holdToClear = it }
 

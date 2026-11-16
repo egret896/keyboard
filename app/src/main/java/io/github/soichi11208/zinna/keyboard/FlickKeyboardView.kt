@@ -244,7 +244,12 @@ class FlickKeyboardView @JvmOverloads constructor(
                 else -> modifierPaint
             }
             if (paint != null) canvas.drawRoundRect(placed.bounds, radius, radius, paint)
-            if (placed === gaugeKey) drawGauge(canvas, placed, radius)
+            if (placed === gaugeKey) {
+                drawGauge(canvas, placed, radius)
+                val hintBaseline = placed.bounds.centerY() - (labelPaint.descent() + labelPaint.ascent()) / 2f
+                canvas.drawText("全消", placed.bounds.centerX(), hintBaseline, labelPaint)
+                continue
+            }
             if (placed.spec.center.action is KeyAction.OpenPanel) {
                 drawPanelIcon(canvas, placed.bounds)
                 continue
@@ -463,17 +468,30 @@ class FlickKeyboardView @JvmOverloads constructor(
             // the finger lifts.
             touch.firedOnPress = true
             emit(touch)
-            if (holdToClear && key.spec.center.action is KeyAction.Backspace) {
-                startGauge(key)
-            } else {
-                scheduleRepeat(key.spec)
-            }
+            scheduleRepeat(key.spec)
         }
         invalidate()
     }
 
     private fun onPointerMove(pointerId: Int, x: Float, y: Float) {
         val touch = activeTouches[pointerId] ?: return
+        if (holdToClear && touch.key.spec.center.action is KeyAction.Backspace) {
+            // ⌫ を左へずらして、そのまま指を止めているとゲージがたまり、満タンで全削除。
+            //   ┌──┐
+            //   │⌫ │ ← 指を置く（長押し＝1文字ずつ連続削除）
+            //   └──┘
+            //  ←ずらす（連続削除は止まり、赤いゲージがたまる → 全削除）
+            val dx = x - touch.downX
+            val dy = y - touch.downY
+            val left = dx < -flickThresholdPx && -dx > kotlin.math.abs(dy)
+            if (left && gaugeKey == null) {
+                cancelRepeat()
+                startGauge(touch.key)
+            } else if (!left && gaugeKey != null) {
+                cancelGauge()
+            }
+            return
+        }
         val direction = resolveDirection(touch, x, y)
         if (direction != touch.direction) {
             touch.direction = direction
@@ -594,8 +612,8 @@ class FlickKeyboardView @JvmOverloads constructor(
     companion object {
         const val DEFAULT_FLICK_THRESHOLD_DP = 24f
 
-        /** ⌫ を押してからゲージがたまり始めるまで（普通のタップと区別するため）。 */
-        private const val GAUGE_DELAY_MS = 300L
+        /** 左へずらしてからゲージがたまり始めるまで。 */
+        private const val GAUGE_DELAY_MS = 150L
 
         /** ゲージが空から満タンになるまでの時間。 */
         private const val GAUGE_FILL_MS = 1000L
