@@ -39,7 +39,11 @@ def key(label, action, weight=1.0, style="CHARACTER", repeatable=False, face=Non
 
 
 def letter(ch):
-    return key(ch, {"type": "input", "text": ch})
+    spec = key(ch, {"type": "input", "text": ch})
+    # 下フリックで大文字
+    if "a" <= ch <= "z":
+        spec["down"] = {"label": ch.upper(), "action": {"type": "input", "text": ch.upper()}}
+    return spec
 
 
 def symbol(ch, face=None):

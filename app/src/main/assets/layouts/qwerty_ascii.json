@@ -13,6 +13,13 @@
               "type": "input",
               "text": "q"
             }
+          },
+          "down": {
+            "label": "Q",
+            "action": {
+              "type": "input",
+              "text": "Q"
+            }
           }
         },
         {
@@ -22,6 +29,13 @@
             "action": {
               "type": "input",
               "text": "w"
+            }
+          },
+          "down": {
+            "label": "W",
+            "action": {
+              "type": "input",
+              "text": "W"
             }
           }
         },
@@ -33,6 +47,13 @@
               "type": "input",
               "text": "e"
             }
+          },
+          "down": {
+            "label": "E",
+            "action": {
+              "type": "input",
+              "text": "E"
+            }
           }
         },
         {
@@ -42,6 +63,13 @@
             "action": {
               "type": "input",
               "text": "r"
+            }
+          },
+          "down": {
+            "label": "R",
+            "action": {
+              "type": "input",
+              "text": "R"
             }
           }
         },
@@ -53,6 +81,13 @@
               "type": "input",
               "text": "t"
             }
+          },
+          "down": {
+            "label": "T",
+            "action": {
+              "type": "input",
+              "text": "T"
+            }
           }
         },
         {
@@ -62,6 +97,13 @@
             "action": {
               "type": "input",
               "text": "y"
+            }
+          },
+          "down": {
+            "label": "Y",
+            "action": {
+              "type": "input",
+              "text": "Y"
             }
           }
         },
@@ -73,6 +115,13 @@
               "type": "input",
               "text": "u"
             }
+          },
+          "down": {
+            "label": "U",
+            "action": {
+              "type": "input",
+              "text": "U"
+            }
           }
         },
         {
@@ -82,6 +131,13 @@
             "action": {
               "type": "input",
               "text": "i"
+            }
+          },
+          "down": {
+            "label": "I",
+            "action": {
+              "type": "input",
+              "text": "I"
             }
           }
         },
@@ -93,6 +149,13 @@
               "type": "input",
               "text": "o"
             }
+          },
+          "down": {
+            "label": "O",
+            "action": {
+              "type": "input",
+              "text": "O"
+            }
           }
         },
         {
@@ -102,6 +165,13 @@
             "action": {
               "type": "input",
               "text": "p"
+            }
+          },
+          "down": {
+            "label": "P",
+            "action": {
+              "type": "input",
+              "text": "P"
             }
           }
         }
@@ -117,6 +187,13 @@
               "type": "input",
               "text": "a"
             }
+          },
+          "down": {
+            "label": "A",
+            "action": {
+              "type": "input",
+              "text": "A"
+            }
           }
         },
         {
@@ -126,6 +203,13 @@
             "action": {
               "type": "input",
               "text": "s"
+            }
+          },
+          "down": {
+            "label": "S",
+            "action": {
+              "type": "input",
+              "text": "S"
             }
           }
         },
@@ -137,6 +221,13 @@
               "type": "input",
               "text": "d"
             }
+          },
+          "down": {
+            "label": "D",
+            "action": {
+              "type": "input",
+              "text": "D"
+            }
           }
         },
         {
@@ -146,6 +237,13 @@
             "action": {
               "type": "input",
               "text": "f"
+            }
+          },
+          "down": {
+            "label": "F",
+            "action": {
+              "type": "input",
+              "text": "F"
             }
           }
         },
@@ -157,6 +255,13 @@
               "type": "input",
               "text": "g"
             }
+          },
+          "down": {
+            "label": "G",
+            "action": {
+              "type": "input",
+              "text": "G"
+            }
           }
         },
         {
@@ -166,6 +271,13 @@
             "action": {
               "type": "input",
               "text": "h"
+            }
+          },
+          "down": {
+            "label": "H",
+            "action": {
+              "type": "input",
+              "text": "H"
             }
           }
         },
@@ -177,6 +289,13 @@
               "type": "input",
               "text": "j"
             }
+          },
+          "down": {
+            "label": "J",
+            "action": {
+              "type": "input",
+              "text": "J"
+            }
           }
         },
         {
@@ -187,6 +306,13 @@
               "type": "input",
               "text": "k"
             }
+          },
+          "down": {
+            "label": "K",
+            "action": {
+              "type": "input",
+              "text": "K"
+            }
           }
         },
         {
@@ -196,6 +322,13 @@
             "action": {
               "type": "input",
               "text": "l"
+            }
+          },
+          "down": {
+            "label": "L",
+            "action": {
+              "type": "input",
+              "text": "L"
             }
           }
         }
@@ -223,6 +356,13 @@
               "type": "input",
               "text": "z"
             }
+          },
+          "down": {
+            "label": "Z",
+            "action": {
+              "type": "input",
+              "text": "Z"
+            }
           }
         },
         {
@@ -232,6 +372,13 @@
             "action": {
               "type": "input",
               "text": "x"
+            }
+          },
+          "down": {
+            "label": "X",
+            "action": {
+              "type": "input",
+              "text": "X"
             }
           }
         },
@@ -243,6 +390,13 @@
               "type": "input",
               "text": "c"
             }
+          },
+          "down": {
+            "label": "C",
+            "action": {
+              "type": "input",
+              "text": "C"
+            }
           }
         },
         {
@@ -252,6 +406,13 @@
             "action": {
               "type": "input",
               "text": "v"
+            }
+          },
+          "down": {
+            "label": "V",
+            "action": {
+              "type": "input",
+              "text": "V"
             }
           }
         },
@@ -263,6 +424,13 @@
               "type": "input",
               "text": "b"
             }
+          },
+          "down": {
+            "label": "B",
+            "action": {
+              "type": "input",
+              "text": "B"
+            }
           }
         },
         {
@@ -273,6 +441,13 @@
               "type": "input",
               "text": "n"
             }
+          },
+          "down": {
+            "label": "N",
+            "action": {
+              "type": "input",
+              "text": "N"
+            }
           }
         },
         {
@@ -282,6 +457,13 @@
             "action": {
               "type": "input",
               "text": "m"
+            }
+          },
+          "down": {
+            "label": "M",
+            "action": {
+              "type": "input",
+              "text": "M"
             }
           }
         },

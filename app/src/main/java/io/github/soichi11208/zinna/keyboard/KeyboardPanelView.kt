@@ -51,6 +51,22 @@ class KeyboardPanelView(context: Context) : LinearLayout(context) {
     var glass: Boolean = true
         set(value) { field = value; invalidate() }
 
+    /**
+     * 中身（候補バー＋キーボード）の高さ。0 より大きいと、中身が何に切り替わっても
+     * パネル全体の高さはこれ＋上下の余白に固定される。
+     */
+    var contentHeight: Int = 0
+        set(value) { if (field != value) { field = value; requestLayout() } }
+
+    override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+        if (contentHeight > 0) {
+            val h = contentHeight + paddingTop + paddingBottom
+            super.onMeasure(widthMeasureSpec, MeasureSpec.makeMeasureSpec(h, MeasureSpec.EXACTLY))
+        } else {
+            super.onMeasure(widthMeasureSpec, heightMeasureSpec)
+        }
+    }
+
     /** MEMENTO MORI の背景（深い海の青・差しこむ光・波の線・大きな薄い文字）を描くか。 */
     var memento: Boolean = false
         set(value) { field = value; mementoBackdrop?.recycle(); mementoBackdrop = null; invalidate() }

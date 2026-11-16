@@ -134,6 +134,9 @@ class ZinnaImeService : InputMethodService() {
     /** What the strip is worth when it is not covering the keyboard. */
     private var collapsedStripHeight = 0
 
+    /** キーボード部分の高さ（4段ぶん）。記号・メニュー・候補一覧などどの画面でもこの高さに固定する。 */
+    private var keysHeightPx = 0
+
     /** The last state mozc rendered, so the expand chip can redraw from it. */
     private var lastState: MozcSession.State? = null
 
@@ -226,8 +229,7 @@ class ZinnaImeService : InputMethodService() {
             // usable, and there is nothing to type while reading the list anyway.
             expandedListener = CandidateStripView.OnExpandedChangeListener { open ->
                 // 広げても全体の高さは変えない：一覧は「候補バー＋キーボード」と同じ高さにする
-                val keysHeight = keyboardView?.height?.takeIf { it > 0 }
-                    ?: keyboardView?.measuredHeight ?: 0
+                val keysHeight = keysHeightPx
                 keyboardView?.visibility = if (open) View.GONE else View.VISIBLE
                 (layoutParams as? LinearLayout.LayoutParams)?.let {
                     it.height =
@@ -240,6 +242,9 @@ class ZinnaImeService : InputMethodService() {
         }
         val stripHeight = (theme.keyHeightDp * 0.8f * resources.displayMetrics.density).toInt()
         collapsedStripHeight = stripHeight
+        keysHeightPx = (theme.keyHeightDp * resources.displayMetrics.density * KEY_ROWS).toInt()
+        // 全体の高さ＝候補バー＋キーボード。中身が何に切り替わってもこの高さのまま。
+        root.contentHeight = stripHeight + keysHeightPx
 
         val keyboard = FlickKeyboardView(this).apply {
             theme = this@ZinnaImeService.theme
@@ -272,10 +277,7 @@ class ZinnaImeService : InputMethodService() {
         )
         root.addView(
             keyboard,
-            LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-            ),
+            LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, keysHeightPx),
         )
 
         panelRoot = root
@@ -543,7 +545,7 @@ class ZinnaImeService : InputMethodService() {
         for (c in text) append(if (c in 'ぁ'..'ゖ') c + 0x60 else c)
     }
 
-    /** ⌫ 長押しのゲージが満タンになったとき：入力欄の文字を全部消す。 */
+    /** ⌫ 長押しのゲージが満タンになったとき：カーソルより左の文字を全部消す（右は残す）。 */
     private fun clearAll() {
         toggleTimeout.cancel()
         if (isComposing) {
@@ -554,10 +556,9 @@ class ZinnaImeService : InputMethodService() {
         ic.beginBatchEdit()
         ic.finishComposingText()
         val before = ic.getTextBeforeCursor(CLEAR_ALL_MAX_CHARS, 0)?.length ?: 0
-        val after = ic.getTextAfterCursor(CLEAR_ALL_MAX_CHARS, 0)?.length ?: 0
         val selected = ic.getSelectedText(0)?.length ?: 0
         if (selected > 0) ic.commitText("", 1)
-        ic.deleteSurroundingText(before, after)
+        ic.deleteSurroundingText(before, 0)
         ic.endBatchEdit()
         clientContextValid = false
     }
@@ -1022,12 +1023,12 @@ class ZinnaImeService : InputMethodService() {
         }).also {
             root.addView(
                 it,
-                LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, keyboard.height),
+                LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, keysHeightPx),
             )
             symbolPanel = it
         }
         (panel.layoutParams as? LinearLayout.LayoutParams)?.let {
-            it.height = keyboard.height
+            it.height = keysHeightPx
             panel.layoutParams = it
         }
         panel.reset()
@@ -1082,11 +1083,11 @@ class ZinnaImeService : InputMethodService() {
         val keyboard = keyboardView ?: return
         if (isComposing) render(session.submit())
         val menu = keyboardMenu ?: KeyboardMenuView(this, theme).also {
-            root.addView(it, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, keyboard.height))
+            root.addView(it, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, keysHeightPx))
             keyboardMenu = it
         }
         (menu.layoutParams as? LinearLayout.LayoutParams)?.let {
-            it.height = keyboard.height
+            it.height = keysHeightPx
             menu.layoutParams = it
         }
         menu.setItems(listOf(
@@ -1177,6 +1178,9 @@ class ZinnaImeService : InputMethodService() {
 
         /** 連打入力で、この時間（ミリ秒）手を止めたら文字を確定する。 */
         private const val TOGGLE_TIMEOUT_MS = 900L
+
+        /** キーボードの段数（高さを決める基準）。 */
+        private const val KEY_ROWS = 4
 
         /** 全削除で一度に見る文字数の上限。 */
         private const val CLEAR_ALL_MAX_CHARS = 100_000

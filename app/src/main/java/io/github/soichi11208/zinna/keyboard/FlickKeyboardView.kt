@@ -221,7 +221,10 @@ class FlickKeyboardView @JvmOverloads constructor(
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
         val width = MeasureSpec.getSize(widthMeasureSpec)
         val rowCount = layout?.rows?.size ?: 4
-        val height = (theme.keyHeightDp * resources.displayMetrics.density * rowCount).toInt()
+        // 高さを指定されたら（ふつうはそう）それに従う。段数が違っても全体の高さは変えない
+        val height = if (MeasureSpec.getMode(heightMeasureSpec) == MeasureSpec.EXACTLY)
+            MeasureSpec.getSize(heightMeasureSpec)
+        else (theme.keyHeightDp * resources.displayMetrics.density * rowCount).toInt()
         setMeasuredDimension(width, height)
     }
 
