@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.res.ColorStateList
 import android.util.TypedValue
 import android.view.Gravity
+import android.view.View
 import android.view.ViewGroup
 import android.view.HapticFeedbackConstants
 import android.widget.FrameLayout
@@ -75,18 +76,18 @@ class CandidateStripView(context: Context) : FrameLayout(context) {
         set(value) {
             if (field == value) return
             field = value
-            oneLine.visibility = if (value) GONE else VISIBLE
+            collapsedView.visibility = if (value) GONE else VISIBLE
             wrapped.visibility = if (value) VISIBLE else GONE
             // Chips live in exactly one of the two containers, so they move across on every toggle.
-            val from = if (value) row else grid
-            val to = if (value) grid else row
+            val from = if (value) collapsedRow else grid
+            val to = if (value) grid else collapsedRow
             while (from.childCount > 0) {
                 val chip = from.getChildAt(0)
                 from.removeViewAt(0)
                 to.addView(chip)
             }
             invalidate()
-            Anim.fadeIn(if (value) wrapped else oneLine)
+            Anim.fadeIn(if (value) wrapped else collapsedView)
             expandedListener?.onExpandedChanged(value)
         }
 
@@ -108,8 +109,39 @@ class CandidateStripView(context: Context) : FrameLayout(context) {
         addView(grid, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
     }
 
+    /**
+     * 2行モード：候補を折り返して2行ぶん見せる（はみ出した分は下に引っぱると一覧で見られる）。
+     * 1行モード：横にスクロールする1列。
+     */
+    var twoLines: Boolean = false
+        set(value) {
+            if (field == value) return
+            field = value
+            if (expanded) return
+            val from = if (value) row else twoRow
+            val to = if (value) twoRow else row
+            while (from.childCount > 0) {
+                val chip = from.getChildAt(0)
+                from.removeViewAt(0)
+                to.addView(chip)
+            }
+            oneLine.visibility = if (value) GONE else VISIBLE
+            twoRow.visibility = if (value) VISIBLE else GONE
+        }
+
+    /** 2行モードの入れ物（折り返し。高さを超えた分は切れる）。 */
+    private val twoRow = FlowLayout(context).apply { visibility = GONE }
+
+    override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
+        super.onSizeChanged(w, h, oldw, oldh)
+        if (!expanded) twoRow.fixedRowHeight = h / 2
+    }
+
+    private val collapsedRow: ViewGroup get() = if (twoLines) twoRow else row
+    private val collapsedView: View get() = if (twoLines) twoRow else oneLine
+
     /** Whichever container is on screen; everything else here works through this. */
-    private val container: ViewGroup get() = if (expanded) grid else row
+    private val container: ViewGroup get() = if (expanded) grid else collapsedRow
 
     // ------------------------------------------------------------ 下に引っぱって一覧を開く
     //
@@ -168,6 +200,7 @@ class CandidateStripView(context: Context) : FrameLayout(context) {
     init {
         // Transparent so the panel behind — colour or the user's background image — shows through.
         addView(oneLine, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
+        addView(twoRow, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
         addView(wrapped, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
     }
 

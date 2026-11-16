@@ -1108,7 +1108,7 @@ class FlickKeyboardView @JvmOverloads constructor(
 
             MotionEvent.ACTION_UP, MotionEvent.ACTION_POINTER_UP -> {
                 val index = event.actionIndex
-                onPointerUp(event.getPointerId(index))
+                onPointerUp(event.getPointerId(index), event.getX(index), event.getY(index))
             }
 
             MotionEvent.ACTION_CANCEL -> {
@@ -1127,7 +1127,7 @@ class FlickKeyboardView @JvmOverloads constructor(
             if (asideSwap.contains(x, y)) { oneHandListener?.invoke(1); return }
             if (asideExit.contains(x, y)) { oneHandListener?.invoke(0); return }
         }
-        val key = placedKeys.firstOrNull { it.bounds.contains(x, y) } ?: return
+        val key = hitKey(x, y) ?: return
         // A new finger means the previous key is settled; commit it rather than letting a stray
         // move event on the old pointer rewrite it.
         activeTouches.values.forEach { commit(it) }
@@ -1188,14 +1188,40 @@ class FlickKeyboardView @JvmOverloads constructor(
         }
     }
 
-    private fun onPointerUp(pointerId: Int) {
-        val touch = activeTouches.remove(pointerId) ?: return
+    private fun onPointerUp(pointerId: Int, x: Float, y: Float) {
+        val touch = activeTouches[pointerId] ?: return
+        // 速いフリックは、指を離す直前の動きが届かないことがある。離した位置でも方向を決め直す
+        if (!touch.firedOnPress) onPointerMove(pointerId, x, y)
+        activeTouches.remove(pointerId)
         if (glass) releasing += Releasing(touch.key, touch.x - touch.downX, touch.y - touch.downY, touch.x, touch.y, SystemClock.uptimeMillis())
         cancelPanelLongPress()
         cancelRepeat()
         cancelGauge()
         commit(touch)
         invalidate()
+    }
+
+    /**
+     * 指の位置にあるキー。キーとキーの間のすき間（見た目の余白）を押したときは、
+     * いちばん近いキーにする（前はすき間を押すと何も起きず、入力が抜けていた）。
+     *
+     *   ┌──┐ ┌──┐
+     *   │あ│・│か│   ・＝すき間 → 近い方のキー
+     *   └──┘ └──┘
+     */
+    private fun hitKey(x: Float, y: Float): PlacedKey? {
+        placedKeys.firstOrNull { it.bounds.contains(x, y) }?.let { return it }
+        val reach = 12f * resources.displayMetrics.density
+        var best: PlacedKey? = null
+        var bestDist = Float.MAX_VALUE
+        for (k in placedKeys) {
+            val b = k.bounds
+            val dx = maxOf(b.left - x, 0f, x - b.right)
+            val dy = maxOf(b.top - y, 0f, y - b.bottom)
+            val dist = dx * dx + dy * dy
+            if (dist < bestDist) { bestDist = dist; best = k }
+        }
+        return if (bestDist <= reach * reach) best else null
     }
 
     private fun resolveDirection(touch: Touch, x: Float, y: Float): FlickDirection =

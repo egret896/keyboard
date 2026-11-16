@@ -146,6 +146,7 @@ private fun MyKeyboardCard() {
     var holdToClear by remember { mutableStateOf(settings.holdToClear) }
     var charge by remember { mutableStateOf(settings.clearChargeMs.toFloat()) }
     var autoBracket by remember { mutableStateOf(settings.autoBracket) }
+    var twoLines by remember { mutableStateOf(settings.candidateTwoLines) }
     var look by remember { mutableStateOf(settings.keyLook) }
     val glass = look == ImeSettings.LOOK_GLASS
     var refract by remember { mutableStateOf(settings.glassRefract) }
@@ -292,6 +293,14 @@ private fun MyKeyboardCard() {
                     TextButton(onClick = { setCharge(charge + 100f) }) { Text("＋") }
                 }
             }
+
+            HorizontalDivider()
+
+            SettingSwitch(
+                title = "予測変換を2行で出す",
+                body = "OFFは1行（横にスクロール）。ONにすると候補バーが2行ぶんの高さになり、キーボード全体が少し高くなります",
+                checked = twoLines,
+            ) { twoLines = it; settings.candidateTwoLines = it }
 
             HorizontalDivider()
 

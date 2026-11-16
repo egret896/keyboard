@@ -17,10 +17,15 @@ class FlowLayout(context: Context) : ViewGroup(context) {
     /** Vertical gap between rows, in pixels. Horizontal spacing comes from the chips' padding. */
     var rowSpacing = 0
 
+    /** 0 より大きいと、どの子もこの高さにそろえる（候補の2行モードで、ちょうど2行に収めるため）。 */
+    var fixedRowHeight = 0
+        set(value) { if (field != value) { field = value; requestLayout() } }
+
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
         val available = MeasureSpec.getSize(widthMeasureSpec) - paddingLeft - paddingRight
         val childSpec = MeasureSpec.makeMeasureSpec(available, MeasureSpec.AT_MOST)
-        val unbounded = MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED)
+        val unbounded = if (fixedRowHeight > 0) MeasureSpec.makeMeasureSpec(fixedRowHeight, MeasureSpec.EXACTLY)
+            else MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED)
 
         var x = 0
         var rowHeight = 0

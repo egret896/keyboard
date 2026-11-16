@@ -225,6 +225,7 @@ class ZinnaImeService : InputMethodService() {
         val candidates = CandidateStripView(this).apply {
             theme = this@ZinnaImeService.theme
             listener = CandidateStripView.OnCandidateSelectedListener(::onCandidateSelected)
+            twoLines = settings.candidateTwoLines
             // Expanding covers the keyboard rather than squeezing it: a two-row keyboard is not
             // usable, and there is nothing to type while reading the list anyway.
             expandedListener = CandidateStripView.OnExpandedChangeListener { open ->
@@ -240,7 +241,9 @@ class ZinnaImeService : InputMethodService() {
                 }
             }
         }
-        val stripHeight = (theme.keyHeightDp * 0.8f * resources.displayMetrics.density).toInt()
+        // 2行モードは候補バーを2倍の高さにする（キーボードの高さはそのまま）
+        val stripHeight = (theme.keyHeightDp * 0.8f * resources.displayMetrics.density *
+            (if (settings.candidateTwoLines) 1.7f else 1f)).toInt()
         collapsedStripHeight = stripHeight
         keysHeightPx = (theme.keyHeightDp * resources.displayMetrics.density * KEY_ROWS).toInt()
         // 全体の高さ＝候補バー＋キーボード。中身が何に切り替わってもこの高さのまま。
