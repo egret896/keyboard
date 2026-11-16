@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- キーボードに戻るアイコン（自作）。枠＋キー＋スペースバー。色は白で、使う側で色を付ける。 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="16"
+    android:viewportHeight="16">
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:fillType="evenOdd"
+        android:pathData="M2,3.5h12a1.5,1.5 0 0 1 1.5,1.5v6a1.5,1.5 0 0 1 -1.5,1.5h-12a1.5,1.5 0 0 1 -1.5,-1.5v-6a1.5,1.5 0 0 1 1.5,-1.5zM2,4.5h12a0.5,0.5 0 0 1 0.5,0.5v6a0.5,0.5 0 0 1 -0.5,0.5h-12a0.5,0.5 0 0 1 -0.5,-0.5v-6a0.5,0.5 0 0 1 0.5,-0.5z" />
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M3,5.5h1v1h-1zM5,5.5h1v1h-1zM7,5.5h1v1h-1zM9,5.5h1v1h-1zM11,5.5h2v1h-2zM3,7.5h2v1h-2zM6,7.5h1v1h-1zM8,7.5h1v1h-1zM10,7.5h1v1h-1zM12,7.5h1v1h-1zM5,9.5h6v1h-6z" />
+</vector>

@@ -223,10 +223,15 @@ class ZinnaImeService : InputMethodService() {
             // Expanding covers the keyboard rather than squeezing it: a two-row keyboard is not
             // usable, and there is nothing to type while reading the list anyway.
             expandedListener = CandidateStripView.OnExpandedChangeListener { open ->
+                // 広げても全体の高さは変えない：一覧は「候補バー＋キーボード」と同じ高さにする
+                val keysHeight = keyboardView?.height?.takeIf { it > 0 }
+                    ?: keyboardView?.measuredHeight ?: 0
                 keyboardView?.visibility = if (open) View.GONE else View.VISIBLE
                 (layoutParams as? LinearLayout.LayoutParams)?.let {
                     it.height =
-                        if (open) LinearLayout.LayoutParams.MATCH_PARENT else collapsedStripHeight
+                        if (open && keysHeight > 0) collapsedStripHeight + keysHeight
+                        else if (open) LinearLayout.LayoutParams.MATCH_PARENT
+                        else collapsedStripHeight
                     layoutParams = it
                 }
             }
@@ -960,7 +965,8 @@ class ZinnaImeService : InputMethodService() {
         clipboard.record(clipboardManager)
         stripContent = StripContent.CLIPBOARD
         val actions = mutableListOf<CandidateStripView.Action>()
-        actions += CandidateStripView.Action(BACK_LABEL) { showIdleActions() }
+        // キーボードに戻る（アイコンで分かるように）
+        actions += CandidateStripView.Action("", R.drawable.ic_keyboard, "キーボードに戻る") { showIdleActions() }
         for (text in clipboard.items()) {
             actions += CandidateStripView.Action(chipLabel(text)) {
                 if (isComposing) render(session.submit())
@@ -1176,7 +1182,6 @@ class ZinnaImeService : InputMethodService() {
         private const val CLIPBOARD_LABEL = "クリップボード"
         private const val ONE_HAND_LABEL = "片手モード"
         private const val UNDO_LABEL = "元に戻す"
-        private const val BACK_LABEL = "✕"
         private const val PRIVATE_OFF_LABEL = "プライベートモード：オフ"
         private const val PRIVATE_ON_LABEL = "プライベートモード：オン"
 
