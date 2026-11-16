@@ -51,8 +51,67 @@ class KeyboardPanelView(context: Context) : LinearLayout(context) {
     var glass: Boolean = true
         set(value) { field = value; invalidate() }
 
+    /** MEMENTO MORI の背景（深い海の青・差しこむ光・波の線・大きな薄い文字）を描くか。 */
+    var memento: Boolean = false
+        set(value) { field = value; mementoBackdrop?.recycle(); mementoBackdrop = null; invalidate() }
+
+    private var mementoBackdrop: Bitmap? = null
+
+    /** 背景は大きさが変わったときだけ1枚の画像に描いておき、毎回はそれを貼るだけ。 */
+    private fun drawMemento(canvas: Canvas) {
+        if (!memento || width == 0 || height == 0) return
+        val cached = mementoBackdrop
+        if (cached == null || cached.width != width || cached.height != height) {
+            cached?.recycle()
+            val bmp = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+            val c = Canvas(bmp)
+            val w = width.toFloat(); val h = height.toFloat(); val d = resources.displayMetrics.density
+            val p = Paint(Paint.ANTI_ALIAS_FLAG)
+            p.shader = android.graphics.LinearGradient(0f, 0f, 0f, h,
+                intArrayOf(0xFF0B3D91.toInt(), 0xFF062258.toInt(), 0xFF020A1F.toInt()), floatArrayOf(0f, 0.55f, 1f),
+                android.graphics.Shader.TileMode.CLAMP)
+            c.drawRect(0f, 0f, w, h, p)
+            // 上から差しこむ光の帯
+            for (i in 0 until 6) {
+                c.save(); c.translate(w * (0.14f + i * 0.157f), 0f); c.rotate(14f)
+                p.shader = android.graphics.LinearGradient(0f, 0f, 0f, h,
+                    0x1A7DE6FD, 0x007DE6FD, android.graphics.Shader.TileMode.CLAMP)
+                val bw = (16f + (i % 3) * 10f) * d
+                c.drawRect(-bw / 2f, -h * 0.1f, bw / 2f, h * 1.1f, p)
+                c.restore()
+            }
+            p.shader = null
+            // 水面のゆらめき（波の線）
+            p.style = Paint.Style.STROKE; p.strokeWidth = 0.8f * d; p.color = 0x127DE6FD
+            var y = 16f * d
+            val path = android.graphics.Path()
+            while (y < h) {
+                path.reset()
+                var x = 0f
+                while (x <= w) {
+                    val yy = y + kotlin.math.sin(x / (27f * d) + y).toFloat() * 2.3f * d +
+                        kotlin.math.sin(x / (9f * d) + y * 0.3f).toFloat() * 0.8f * d
+                    if (x == 0f) path.moveTo(x, yy) else path.lineTo(x, yy)
+                    x += 3f * d
+                }
+                c.drawPath(path, p)
+                y += 18f * d
+            }
+            // 大きな薄い文字
+            p.style = Paint.Style.FILL; p.color = 0x0CFFFFFF
+            p.textSize = h * 0.24f; p.textSkewX = -0.25f; p.isFakeBoldText = true
+            p.typeface = android.graphics.Typeface.create(android.graphics.Typeface.SANS_SERIF, android.graphics.Typeface.BOLD)
+            c.save(); c.translate(-8f * d, h - 10f * d); c.rotate(-3.5f)
+            c.drawText("MEMENTO MORI", 0f, 0f, p)
+            c.restore()
+            mementoBackdrop = bmp
+        }
+        canvas.drawBitmap(mementoBackdrop!!, 0f, 0f, null)
+    }
+
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
+        if (bitmap == null) drawMemento(canvas)
         drawPanel(canvas)
     }
 
@@ -78,6 +137,7 @@ class KeyboardPanelView(context: Context) : LinearLayout(context) {
         val c = Canvas(out)
         c.translate(-ox, -oy)
         background?.draw(c)
+        if (bitmap == null) drawMemento(c)
         drawPanel(c)
         return out
     }

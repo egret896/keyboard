@@ -193,6 +193,7 @@ class ZinnaImeService : InputMethodService() {
             setBackgroundColor(this@ZinnaImeService.theme.backgroundColor)
             setBackgroundImage(settings.backgroundImage, settings.backgroundOpacity)
             glass = settings.liquidGlass
+            memento = settings.mementoKeys
             // Start from what we already know, so a rebuild triggered by a settings change is
             // padded before it draws rather than after the next dispatch — which, since the
             // window's insets did not change, may never arrive.
@@ -251,6 +252,7 @@ class ZinnaImeService : InputMethodService() {
             oneHand = effectiveOneHand()
             glass = settings.liquidGlass
             minimal = settings.minimalKeys
+            memento = settings.mementoKeys
             lensParams = io.github.soichi11208.zinna.keyboard.Lens.Params(
                 refract = settings.glassRefract, frost = settings.glassFrost,
                 light = settings.glassLight, shadow = settings.glassShadow,
@@ -297,7 +299,18 @@ class ZinnaImeService : InputMethodService() {
         val base = repository.loadTheme(MaterialYouTheme.ID)
             ?: MaterialYouTheme.create(this, forceDark = settings.pureBlack)
         val sized = base.copy(keyHeightDp = base.keyHeightDp * settings.keyHeightScale)
-        return if (settings.pureBlack) sized.asPureBlack() else sized
+        val themed = if (settings.pureBlack) sized.asPureBlack() else sized
+        // MEMENTO MORI：色は固定（深い青に白い文字。押した時は水色）
+        return if (settings.mementoKeys) themed.copy(
+            backgroundColor = 0xFF062258.toInt(),
+            labelColor = android.graphics.Color.WHITE,
+            keyPressedColor = 0xFF16CFFB.toInt(),
+            flickGuideColor = android.graphics.Color.WHITE,
+            flickGuideLabelColor = android.graphics.Color.BLACK,
+            flickGuideSelectedLabelColor = android.graphics.Color.BLACK,
+            candidateBackgroundColor = 0x59020A1F,
+            candidateTextColor = android.graphics.Color.WHITE,
+        ) else themed
     }
 
     override fun onStartInputView(info: EditorInfo?, restarting: Boolean) {

@@ -345,7 +345,8 @@ class FlickKeyboardView @JvmOverloads constructor(
             if (!touch.key.spec.hasFlicks) continue
             when (guideStyle) {
                 FlickGuideStyle.PREVIEW ->
-                    if (glass) drawLiquidPreview(canvas, touch, radius) else drawFlickPreview(canvas, touch, radius)
+                    if (memento && !glass) drawMementoPreview(canvas, touch)
+                    else if (glass) drawLiquidPreview(canvas, touch, radius) else drawFlickPreview(canvas, touch, radius)
                 FlickGuideStyle.DIRECTIONS -> drawFlickGuide(canvas, touch, radius)
                 FlickGuideStyle.NONE -> Unit
             }
@@ -403,6 +404,139 @@ class FlickKeyboardView @JvmOverloads constructor(
     //  ──     ──    ──       ← 線どうしは交わらせない（十字の所はすき間）
     //   た │ な │ は
     //
+    // ------------------------------------------------------------ MEMENTO MORI
+    //
+    //  深い海の青。キーは斜めに傾いた札（平行四辺形）で、1枚ずつほんの少しずつ違う角度に傾く。
+    //  左の縁に水色の細い線。文字は白の太い斜体。
+    //  押すと：札が水色に光って少し大きく浮き上がり、白い三角のカーソルが重なる。
+    //          三角に重なった部分の文字だけ赤くなる（左下に赤い小さな三角）。
+    //
+    /** MEMENTO MORI の見た目で描くか。 */
+    var memento: Boolean = false
+        set(value) { field = value; invalidate() }
+
+    private val mmPaint = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val mmLabel = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        textAlign = Paint.Align.CENTER
+        textSkewX = -0.25f
+        isFakeBoldText = true
+    }
+    private val mmPath = android.graphics.Path()
+    private val mmMatrix = android.graphics.Matrix()
+
+    /** キーごとに決まった、ほんの少しの傾き（-2.5°〜+2.5°）。 */
+    private fun mmTilt(k: PlacedKey): Float {
+        var n = (k.bounds.left * 31f + k.bounds.top * 17f).toInt() * 374761393
+        n = (n xor (n ushr 13)) * 1274126177
+        return (((n xor (n ushr 16)) and 0xffff) / 65535f - 0.5f) * 5f
+    }
+
+    /** 札の形（平行四辺形）を [mmPath] に作る。中心が (0,0)。 */
+    private fun mmCard(w: Float, h: Float) {
+        val skew = h / 2f * 0.25f        // 約14°
+        mmPath.reset()
+        mmPath.moveTo(-w / 2f + skew, -h / 2f)
+        mmPath.lineTo(w / 2f + skew, -h / 2f)
+        mmPath.lineTo(w / 2f - skew, h / 2f)
+        mmPath.lineTo(-w / 2f - skew, h / 2f)
+        mmPath.close()
+    }
+
+    private fun drawMementoKey(canvas: Canvas, placed: PlacedKey, label: String?) {
+        val d = resources.displayMetrics.density
+        val b = placed.bounds
+        val pressed = isPressed(placed)
+        val character = placed.spec.style == KeyStyle.CHARACTER
+        val w = b.width() - 6f * d
+        val h = b.height() - 8f * d
+        canvas.save()
+        canvas.translate(b.centerX(), b.centerY())
+        canvas.rotate(if (pressed) -4f else mmTilt(placed))
+        if (pressed) canvas.scale(1.1f, 1.1f)
+        mmCard(w, h)
+        if (!pressed) {
+            mmPaint.shader = null
+            mmPaint.color = if (character) 0x9E031238.toInt() else 0x2116CFFB
+            canvas.drawPath(mmPath, mmPaint)
+            // 左の縁の水色の線
+            val skew = h / 2f * 0.25f
+            mmPaint.color = 0xFF16CFFB.toInt()
+            mmPaint.strokeWidth = 2f * d
+            mmPaint.style = Paint.Style.STROKE
+            canvas.drawLine(-w / 2f + skew, -h / 2f, -w / 2f - skew, h / 2f, mmPaint)
+            mmPaint.style = Paint.Style.FILL
+        } else {
+            // 浮き上がった影＋水色の札
+            canvas.save(); canvas.translate(5f * d, 5f * d)
+            mmPaint.shader = null; mmPaint.color = 0x73000000
+            canvas.drawPath(mmPath, mmPaint)
+            canvas.restore()
+            mmPaint.shader = android.graphics.LinearGradient(0f, -h / 2f, 0f, h / 2f,
+                0xFF77FEFC.toInt(), 0xFF16CFFB.toInt(), android.graphics.Shader.TileMode.CLAMP)
+            canvas.drawPath(mmPath, mmPaint)
+            mmPaint.shader = null
+        }
+        if (label != null) {
+            mmLabel.textSize = labelPaint.textSize * (if (character) 1.12f else 0.95f)
+            val baseline = -(mmLabel.descent() + mmLabel.ascent()) / 2f
+            if (!pressed) {
+                mmLabel.color = android.graphics.Color.WHITE
+                canvas.drawText(label, 0f, baseline, mmLabel)
+            } else {
+                mmLabel.color = android.graphics.Color.BLACK
+                canvas.drawText(label, 0f, baseline, mmLabel)
+                // 白い三角のカーソル
+                val tri = android.graphics.Path().apply {
+                    moveTo(-w * 0.75f, h * 0.65f); lineTo(w * 0.05f, -h * 0.75f); lineTo(w * 0.18f, h * 0.5f); close()
+                }
+                mmPaint.color = android.graphics.Color.WHITE
+                canvas.drawPath(tri, mmPaint)
+                // 三角に重なった部分の文字だけ赤く
+                canvas.save(); canvas.clipPath(tri)
+                mmLabel.color = 0xFFFF1E3C.toInt()
+                canvas.drawText(label, 0f, baseline, mmLabel)
+                canvas.restore()
+                // 左下の赤い小さな三角
+                val accent = android.graphics.Path().apply {
+                    moveTo(-w * 0.75f, h * 0.65f); lineTo(-w * 0.55f, h * 0.2f); lineTo(-w * 0.45f, h * 0.62f); close()
+                }
+                mmPaint.color = 0xFFFF1E3C.toInt()
+                canvas.drawPath(accent, mmPaint)
+            }
+        }
+        canvas.restore()
+    }
+
+    /** フリック中の吹き出し：白い札に黒い斜体の文字、左下に赤い三角。 */
+    private fun drawMementoPreview(canvas: Canvas, touch: Touch) {
+        val output = touch.key.spec.output(touch.direction) ?: return
+        val d = resources.displayMetrics.density
+        val bounds = touch.key.bounds
+        previewRect.set(bounds)
+        previewRect.offset(0f, -bounds.height())
+        clampIntoView(previewRect)
+        val w = previewRect.width() - 4f * d
+        val h = previewRect.height() - 6f * d
+        canvas.save()
+        canvas.translate(previewRect.centerX(), previewRect.centerY())
+        canvas.rotate(-3f)
+        mmCard(w, h)
+        canvas.save(); canvas.translate(4f * d, 4f * d)
+        mmPaint.shader = null; mmPaint.color = 0x80000000.toInt(); canvas.drawPath(mmPath, mmPaint)
+        canvas.restore()
+        mmPaint.color = android.graphics.Color.WHITE
+        canvas.drawPath(mmPath, mmPaint)
+        val accent = android.graphics.Path().apply {
+            moveTo(-w / 2f - 2f * d, h / 2f + 2f * d); lineTo(-w / 2f + w * 0.18f, h / 2f + 2f * d); lineTo(-w / 2f + w * 0.02f, h * 0.05f); close()
+        }
+        mmPaint.color = 0xFFFF1E3C.toInt()
+        canvas.drawPath(accent, mmPaint)
+        mmLabel.textSize = guideLabelPaint.textSize * 1.1f
+        mmLabel.color = android.graphics.Color.BLACK
+        canvas.drawText(output.label, 0f, -(mmLabel.descent() + mmLabel.ascent()) / 2f, mmLabel)
+        canvas.restore()
+    }
+
     /** ミニマリスト（罫線だけ）で描くか。リキッドグラスより優先しない（glass が true なら glass）。 */
     var minimal: Boolean = false
         set(value) { field = value; invalidate() }
@@ -751,7 +885,12 @@ class FlickKeyboardView @JvmOverloads constructor(
                 placed.spec.style == KeyStyle.CHARACTER -> keyPaint
                 else -> modifierPaint
             }
-            if (glass) drawGlassKey(canvas, placed)
+            if (memento && !glass) {
+                if (placed !== gaugeKey && placed.spec.center.action !is KeyAction.OpenPanel) {
+                    drawMementoKey(canvas, placed, faceLabel(placed.spec)); return
+                }
+                drawMementoKey(canvas, placed, null)
+            } else if (glass) drawGlassKey(canvas, placed)
             else if (minimal) {
                 // 押している間だけ、うっすら面を出す
                 if (isPressed(placed)) canvas.drawRoundRect(placed.bounds, radius, radius, keyPressedPaint)
