@@ -42,12 +42,17 @@ class SymbolPanelView(
         fun onPanelText(text: String)
         fun onPanelBackspace()
         fun onPanelClose()
+        /** プライベートモード中は履歴を残さない。 */
+        fun isPrivate(): Boolean
+        /** 設定画面で登録した定型文。 */
+        fun phrases(): List<String>
     }
 
     private enum class Kind(val label: String, val asset: String, val historyKey: String) {
         SYMBOL("記号", "panels/symbols.json", "history_symbol"),
         EMOJI("絵文字", "panels/emoji.json", "history_emoji"),
         KAOMOJI("顔文字", "panels/kaomoji.json", "history_kaomoji"),
+        PHRASE("定型文", "", "history_phrase"),
     }
 
     private data class Category(val name: String, val items: List<String>)
@@ -118,7 +123,7 @@ class SymbolPanelView(
             }
         button("⌨", 1f) { listener.onPanelClose() }
         for (k in Kind.entries) {
-            kindButtons[k] = button(k.label, 1.3f) { showKind(k) }
+            kindButtons[k] = button(k.label, 1.2f) { showKind(k) }
         }
         button("⌫", 1f) { listener.onPanelBackspace() }.apply {
             // 長押しで連続削除
@@ -140,7 +145,7 @@ class SymbolPanelView(
     private fun showKind(next: Kind) {
         kind = next
         val categories = categoriesOf(next)
-        categoryIndex = if (history(next).isNotEmpty()) 0 else 1
+        categoryIndex = if (next != Kind.PHRASE && history(next).isNotEmpty()) 0 else 1
         grid.columnWidth = dp(KIND_COLUMN_DP[next] ?: 56f)
         kindButtons.forEach { (k, view) ->
             view.setTextColor(if (k == next) accent else theme.labelColor)
@@ -176,7 +181,13 @@ class SymbolPanelView(
         grid.setSelection(0)
     }
 
-    private fun categoriesOf(k: Kind): List<Category> = cache.getOrPut(k) {
+    private fun categoriesOf(k: Kind): List<Category> {
+        // 定型文は設定画面でいつでも変わるので、毎回読み直す
+        if (k == Kind.PHRASE) return listOf(Category("定型文", listener.phrases()))
+        return loadAsset(k)
+    }
+
+    private fun loadAsset(k: Kind): List<Category> = cache.getOrPut(k) {
         try {
             val json = context.assets.open(k.asset).bufferedReader().use { it.readText() }
             val array = JSONArray(json)
@@ -199,6 +210,7 @@ class SymbolPanelView(
             ?: emptyList()
 
     private fun remember(text: String) {
+        if (listener.isPrivate()) return
         val updated = (listOf(text) + history(kind).filter { it != text }).take(HISTORY_LIMIT)
         prefs.edit().putString(kind.historyKey, updated.joinToString(HISTORY_SEPARATOR)).apply()
     }
@@ -215,13 +227,15 @@ class SymbolPanelView(
                 gravity = Gravity.CENTER
                 setTextColor(theme.labelColor)
                 maxLines = 1
+                ellipsize = android.text.TextUtils.TruncateAt.END
+                setPadding(dp(6f), 0, dp(6f), 0)
                 layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(52f))
             }
             view.text = items[position]
             view.setTextSize(
                 TypedValue.COMPLEX_UNIT_SP,
                 when {
-                    kind == Kind.KAOMOJI -> 15f
+                    kind == Kind.KAOMOJI || kind == Kind.PHRASE -> 15f
                     kind == Kind.EMOJI -> 26f
                     else -> 22f
                 },
@@ -245,6 +259,7 @@ class SymbolPanelView(
             Kind.SYMBOL to 56f,
             Kind.EMOJI to 56f,
             Kind.KAOMOJI to 130f,
+            Kind.PHRASE to 260f,
         )
     }
 }

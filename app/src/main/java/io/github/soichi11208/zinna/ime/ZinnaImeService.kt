@@ -31,6 +31,7 @@ import io.github.soichi11208.zinna.keyboard.KeyAction
 import io.github.soichi11208.zinna.keyboard.KeyOutput
 import io.github.soichi11208.zinna.keyboard.KeySpec
 import io.github.soichi11208.zinna.keyboard.KeyboardLayout
+import io.github.soichi11208.zinna.keyboard.SplitLayout
 import io.github.soichi11208.zinna.keyboard.KeyboardPanelView
 import io.github.soichi11208.zinna.keyboard.SymbolPanelView
 import io.github.soichi11208.zinna.keyboard.LayoutRepository
@@ -229,7 +230,7 @@ class ZinnaImeService : InputMethodService() {
 
         val keyboard = FlickKeyboardView(this).apply {
             theme = this@ZinnaImeService.theme
-            layout = loaded
+            layout = loaded?.let { adaptForWidth(it) }
             guideOverflowTop = stripHeight.toFloat()
             guideStyle = guideStyleFor(loaded)
             listener = FlickKeyboardView.OnKeyOutputListener(::onKeyOutput)
@@ -283,6 +284,7 @@ class ZinnaImeService : InputMethodService() {
         if (settings.revision != builtFromRevision) {
             setInputView(onCreateInputView())
         }
+        applyPrivacy(info)
         if (!restarting) session.resetContext()
         lastTableKey = null
         clientContextValid = false
@@ -601,7 +603,7 @@ class ZinnaImeService : InputMethodService() {
         render(session.submit())
         lastTableKey = null
         layout = next
-        keyboardView?.layout = next
+        keyboardView?.layout = adaptForWidth(next)
         // Set alongside the layout, not once at view creation: the guide depends on which plane is
         // showing, and switching planes never rebuilds the view.
         keyboardView?.guideStyle = guideStyleFor(next)
@@ -738,6 +740,7 @@ class ZinnaImeService : InputMethodService() {
     }
 
     private fun learnConfirmed(output: String) {
+        if (session.incognito) return
         if (!session.zenzaiEnabled || !settings.zenzaiPlusEnabled || isPasswordField(currentInputEditorInfo?.inputType ?: 0) ||
             (currentInputEditorInfo?.imeOptions ?: 0) and EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING != 0) return
         val reading = lastState?.preeditReading.orEmpty()
@@ -802,6 +805,9 @@ class ZinnaImeService : InputMethodService() {
             actions += CandidateStripView.Action(CLIPBOARD_LABEL, R.drawable.ic_clipboard) { showClipboard() }
         }
         actions += CandidateStripView.Action(UNDO_LABEL, R.drawable.ic_undo) { render(session.undo()) }
+        actions += CandidateStripView.Action(
+            if (settings.privateMode) PRIVATE_ON_LABEL else PRIVATE_OFF_LABEL
+        ) { togglePrivateMode() }
         view.setActions(actions)
     }
 
@@ -843,6 +849,8 @@ class ZinnaImeService : InputMethodService() {
         val keyboard = keyboardView ?: return
         if (isComposing) render(session.submit())
         val panel = symbolPanel ?: SymbolPanelView(this, theme, object : SymbolPanelView.Listener {
+            override fun isPrivate(): Boolean = session.incognito
+            override fun phrases(): List<String> = settings.phrases
             override fun onPanelText(text: String) {
                 if (isComposing) render(session.submit())
                 currentInputConnection?.commitText(text, 1)
@@ -864,6 +872,35 @@ class ZinnaImeService : InputMethodService() {
         keyboard.visibility = View.GONE
         panel.visibility = View.VISIBLE
     }
+
+    // ---------------------------------------------------------------- プライベートモード
+
+    /**
+     * プライベートモードを mozc に反映する。
+     * 自分でONにしたときに加えて、アプリが「学習しないで」と頼んできた入力欄でも自動でONにする。
+     */
+    private fun applyPrivacy(info: EditorInfo?) {
+        val appAsksNoLearning =
+            ((info?.imeOptions ?: 0) and EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING) != 0
+        session.setIncognito(settings.privateMode || appAsksNoLearning)
+    }
+
+    private fun togglePrivateMode() {
+        settings.privateMode = !settings.privateMode
+        if (isComposing) render(session.submit())
+        applyPrivacy(currentInputEditorInfo)
+        showIdleActions()
+    }
+
+    // ---------------------------------------------------------------- 左右分割（Fold 展開時）
+
+    /** 横幅が広いとき（Fold を開いたとき）だけ、左右分割の配置に変える。 */
+    private fun adaptForWidth(layout: KeyboardLayout): KeyboardLayout =
+        if (settings.splitWhenWide && resources.configuration.screenWidthDp >= SPLIT_MIN_WIDTH_DP) {
+            SplitLayout.split(layout)
+        } else {
+            layout
+        }
 
     private fun closeSymbolPanel() {
         symbolPanel?.visibility = View.GONE
@@ -888,6 +925,11 @@ class ZinnaImeService : InputMethodService() {
         private const val CLIPBOARD_LABEL = "クリップボード"
         private const val UNDO_LABEL = "元に戻す"
         private const val BACK_LABEL = "✕"
+        private const val PRIVATE_OFF_LABEL = "🔓 プライベート"
+        private const val PRIVATE_ON_LABEL = "🔒 プライベート中"
+
+        /** これ以上の横幅（dp）なら左右分割にする。Fold7 を開くと約 840dp、閉じると約 400dp。 */
+        private const val SPLIT_MIN_WIDTH_DP = 600
 
         /** How much of a clipping fits on a chip before it stops being readable. */
         private const val CLIP_LABEL_LIMIT = 24

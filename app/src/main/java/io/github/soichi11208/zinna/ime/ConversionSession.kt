@@ -21,8 +21,18 @@ internal class ConversionSession(private val context: Context) {
         set(value) { field = value; if (usesMozc) native().clientContext = value }
     val isAvailable get() = zenzaiEnabled || native().isAvailable
 
+    /** プライベートモード。mozc に学習・履歴の保存をさせない。 */
+    var incognito = false
+        private set
+
+    fun setIncognito(enabled: Boolean) {
+        incognito = enabled
+        if (usesMozc) native().setIncognito(enabled)
+    }
+
     private fun native(): MozcSession = mozc ?: MozcSession(context).also {
         mozc = it
+        it.setIncognito(incognito)
         it.applyInputStyle(style)
         it.clientContext = clientContext
     }

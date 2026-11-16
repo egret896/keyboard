@@ -61,6 +61,20 @@ class MozcSession(context: Context) {
     private var currentStyle: InputStyle? = null
 
     /**
+     * プライベートモード。true の間、mozc は学習も履歴の保存もしない（Config.incognito_mode）。
+     */
+    var incognito: Boolean = false
+        private set
+
+    fun setIncognito(enabled: Boolean) {
+        if (enabled == incognito) return
+        incognito = enabled
+        val engine = engine ?: return
+        val style = currentStyle ?: return
+        applyConfig(engine, style)
+    }
+
+    /**
      * What the editor looks like around the cursor, handed to mozc with every key.
      *
      * mozc reconstructs history segments from `preceding_text` when a composition starts, and ranks
@@ -168,6 +182,7 @@ class MozcSession(context: Context) {
                             else Config.FundamentalCharacterForm.FUNDAMENTAL_HALF_WIDTH
                         )
                         .setUseTypingCorrection(true)
+                        .setIncognitoMode(incognito)
                         .setUseKanaModifierInsensitiveConversion(true)
                 )
         )

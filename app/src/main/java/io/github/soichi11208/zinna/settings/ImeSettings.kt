@@ -43,6 +43,30 @@ class ImeSettings(context: Context) {
             bumpRevision()
         }
 
+    /** プライベートモード（キーボード上のボタンで切り替え）。学習・履歴を残さない。 */
+    var privateMode: Boolean
+        get() = prefs.getBoolean(KEY_PRIVATE_MODE, false)
+        set(value) = prefs.edit().putBoolean(KEY_PRIVATE_MODE, value).apply()
+
+    /** 定型文。1行に1つ。 */
+    var phrases: List<String>
+        get() = (prefs.getString(KEY_PHRASES, null) ?: DEFAULT_PHRASES)
+            .split("\n").map { it.trimEnd() }.filter { it.isNotEmpty() }
+        set(value) = prefs.edit().putString(KEY_PHRASES, value.joinToString("\n")).apply()
+
+    /** 定型文を設定画面で編集するときの生テキスト。 */
+    var phrasesText: String
+        get() = prefs.getString(KEY_PHRASES, null) ?: DEFAULT_PHRASES
+        set(value) = prefs.edit().putString(KEY_PHRASES, value).apply()
+
+    /** Fold を開いた（横幅が広い）ときに、左右分割の両手レイアウトにする。 */
+    var splitWhenWide: Boolean
+        get() = prefs.getBoolean(KEY_SPLIT_WIDE, true)
+        set(value) {
+            prefs.edit().putBoolean(KEY_SPLIT_WIDE, value).apply()
+            bumpRevision()
+        }
+
     /** How strongly the background image shows through, 0f–1f. */
     var backgroundOpacity: Float
         get() = prefs.getFloat(KEY_BACKGROUND_OPACITY, DEFAULT_BACKGROUND_OPACITY)
@@ -150,6 +174,10 @@ class ImeSettings(context: Context) {
         /** Also the name [io.github.soichi11208.zinna.mozc.ProfileBackup] stores these under. */
         const val NAME = "ime_settings"
         private const val KEY_PURE_BLACK = "pure_black"
+        private const val KEY_PRIVATE_MODE = "private_mode"
+        private const val KEY_PHRASES = "phrases"
+        private const val KEY_SPLIT_WIDE = "split_when_wide"
+        private const val DEFAULT_PHRASES = "お疲れさまです。\nよろしくお願いします。\nありがとうございます！\n了解です！\n今から帰ります"
         private const val KEY_ZENZAI_PLUS = "zenzai_plus_enabled"
         private const val KEY_ZENZAI_MOZC = "zenzai_mozc_enabled"
         private const val KEY_BACKGROUND_OPACITY = "background_opacity"

@@ -92,7 +92,9 @@ private fun SettingsScreen(modifier: Modifier = Modifier) {
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Text("zinna-IME", style = MaterialTheme.typography.headlineMedium)
+        Text("KKKeyboard", style = MaterialTheme.typography.headlineMedium)
+
+        MyKeyboardCard()
 
         InfoCard(title = "変換エンジン", body = engineStatus)
         ZenzaiCard()
@@ -127,6 +129,68 @@ private fun SettingsScreen(modifier: Modifier = Modifier) {
             },
             modifier = Modifier.fillMaxWidth(),
         ) { Text("キーボードを選択") }
+    }
+}
+
+/** KKKeyboard で追加した設定：プライベートモード・Fold の左右分割・定型文。 */
+@Composable
+private fun MyKeyboardCard() {
+    val context = LocalContext.current
+    val settings = remember { ImeSettings(context) }
+    var privateMode by remember { mutableStateOf(settings.privateMode) }
+    var split by remember { mutableStateOf(settings.splitWhenWide) }
+    var phrases by remember { mutableStateOf(settings.phrasesText) }
+
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("KKKeyboard の設定", style = MaterialTheme.typography.titleMedium)
+
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("プライベートモード", style = MaterialTheme.typography.bodyLarge)
+                    Text(
+                        "ONの間は入力を学習せず、記号や絵文字の履歴も残しません。キーボード上部の「🔓 プライベート」でも切り替えられます",
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+                Switch(checked = privateMode, onCheckedChange = {
+                    privateMode = it
+                    settings.privateMode = it
+                })
+            }
+
+            HorizontalDivider()
+
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("Foldを開いたら左右分割", style = MaterialTheme.typography.bodyLarge)
+                    Text(
+                        "画面が広いときは、左右に「あかさ…」を分けて両手の親指で打てる配置にします",
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+                Switch(checked = split, onCheckedChange = {
+                    split = it
+                    settings.splitWhenWide = it
+                })
+            }
+
+            HorizontalDivider()
+
+            Text("定型文", style = MaterialTheme.typography.bodyLarge)
+            Text(
+                "1行に1つ書きます。キーボードの「☺記」→「定型文」から入力できます",
+                style = MaterialTheme.typography.bodySmall,
+            )
+            OutlinedTextField(
+                value = phrases,
+                onValueChange = {
+                    phrases = it
+                    settings.phrasesText = it
+                },
+                modifier = Modifier.fillMaxWidth().heightIn(min = 140.dp),
+            )
+        }
     }
 }
 
