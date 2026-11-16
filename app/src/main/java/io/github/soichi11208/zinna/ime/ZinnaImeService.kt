@@ -393,6 +393,8 @@ class ZinnaImeService : InputMethodService() {
 
             is KeyAction.Space -> handleSpace()
 
+            is KeyAction.Katakana -> convertToKatakana()
+
             // With something composing, this converts; with nothing to convert it behaves as
             // Enter. Inserting a space there would be the desktop behaviour and is not what a
             // 確定 key on a phone should do.
@@ -473,6 +475,29 @@ class ZinnaImeService : InputMethodService() {
         }
         ic.endBatchEdit()
         return true
+    }
+
+    /**
+     * 入力中のひらがなをカタカナにして確定する。
+     * mozc の候補に同じカタカナがあればそれを選ぶ（学習も効く）。なければ自分で変換して入れる。
+     */
+    private fun convertToKatakana() {
+        if (!isComposing) return
+        val state = lastState ?: return
+        val reading = state.preeditReading.ifEmpty { state.preedit }
+        val katakana = toKatakana(reading)
+        val match = state.candidates.firstOrNull { it.text == katakana }
+        if (match != null) {
+            onCandidateSelected(match)
+            return
+        }
+        render(session.revert())
+        currentInputConnection?.commitText(katakana, 1)
+        clientContextValid = false
+    }
+
+    private fun toKatakana(text: String): String = buildString {
+        for (c in text) append(if (c in 'ぁ'..'ゖ') c + 0x60 else c)
     }
 
     /** ⌫ 長押しのゲージが満タンになったとき：入力欄の文字を全部消す。 */

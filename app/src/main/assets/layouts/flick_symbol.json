@@ -375,7 +375,12 @@
             }
           },
           "style": "ACTION",
-          "repeatable": true
+          "down": {
+            "label": "カナ",
+            "action": {
+              "type": "katakana"
+            }
+          }
         }
       ]
     },

@@ -152,7 +152,12 @@ BACKSPACE = lambda: action_key("⌫", {"type": "backspace"}, repeatable=True)
 CURSOR_LEFT = lambda: action_key("◀", {"type": "cursor", "delta": -1}, style="MODIFIER",
                                  repeatable=True)
 CURSOR_RIGHT = lambda: action_key("▶", {"type": "cursor", "delta": 1}, repeatable=True)
-SPACE = lambda: action_key("␣", {"type": "space"}, repeatable=True)
+# 空白キー。入力中に下フリックすると、カタカナに変換して確定する。
+# （フリックを見分けるため、押した瞬間には反応しない＝長押しの連続入力はなし）
+def SPACE():
+    key = action_key("␣", {"type": "space"})
+    key["down"] = {"label": "カナ", "action": {"type": "katakana"}}
+    return key
 ENTER = lambda: action_key("↵", {"type": "enter"})
 # 記号・絵文字・顔文字パネルを開くキー（3段目の左）
 PANEL = lambda: action_key("☺記", {"type": "panel"}, style="MODIFIER")

@@ -125,6 +125,11 @@ sealed interface KeyAction {
     @SerialName("space")
     data object Space : KeyAction
 
+    /** 入力中の文字をカタカナにして確定する（空白キーの下フリック）。 */
+    @Serializable
+    @SerialName("katakana")
+    data object Katakana : KeyAction
+
     /** Convert the current composition, or insert a full-width space when idle. */
     @Serializable
     @SerialName("convert")
