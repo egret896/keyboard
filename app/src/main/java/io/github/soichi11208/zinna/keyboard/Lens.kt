@@ -66,7 +66,11 @@ internal object Lens {
      * @param light 縁の光 0〜2
      * @param shadow 影 0〜2
      */
-    data class Params(val refract: Float = 1f, val frost: Float = 0.2f, val light: Float = 1f, val shadow: Float = 1f)
+    data class Params(
+        val refract: Float = 1f, val frost: Float = 0.2f, val light: Float = 1f, val shadow: Float = 1f,
+        /** true＝角丸なしの四角（フローズン用） */
+        val square: Boolean = false,
+    )
 
     /** 計算だけの結果（Android の画像にする前）。テストでも使う。 */
     class Pixels(val argb: IntArray, val width: Int, val height: Int, val margin: Int)
@@ -98,8 +102,8 @@ internal object Lens {
         val bw = w + 2 * m
         val bh = h + 2 * m
         val n = bw * bh
-        val r = min(w, h) / 2f
-        val z = Tokens.BEVEL * r * (1f + 0.25f * press)
+        val r = if (params.square) 0.5f else min(w, h) / 2f
+        val z = Tokens.BEVEL * (if (params.square) min(w, h) * 0.12f else r) * (1f + 0.25f * press)
         val cx = b.left + w / 2f
         val cy = b.top + h / 2f
 
@@ -157,8 +161,8 @@ internal object Lens {
             }
         }
         // 2) 背景ぼかし
-        // くもり：0.2 で Tokens.BLUR_DP、1 で約6dp。0 ならぼかさない
-        val blurDp = if (frost <= 0.2f) Tokens.BLUR_DP * frost / 0.2f else Tokens.BLUR_DP + (6f - Tokens.BLUR_DP) * (frost - 0.2f) / 0.8f
+        // くもり：0.2 で Tokens.BLUR_DP、1 で約10dp。0 ならぼかさない
+        val blurDp = if (frost <= 0.2f) Tokens.BLUR_DP * frost / 0.2f else Tokens.BLUR_DP + (10f - Tokens.BLUR_DP) * (frost - 0.2f) / 0.8f
         val blurR = (blurDp * density / 2f).toInt()
         if (blurR >= 1) for (ch in arrayOf(red, green, blue)) blur3(ch, cover, bw, bh, blurR)
         // すりガラスほど白っぽく（光が散る）

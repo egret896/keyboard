@@ -403,6 +403,45 @@ class FlickKeyboardView @JvmOverloads constructor(
     //  ──     ──    ──       ← 線どうしは交わらせない（十字の所はすき間）
     //   た │ な │ は
     //
+    /**
+     * フローズン：角丸なしの四角いすりガラスを、すき間なく敷き詰める（キーの境目は細い線1本）。
+     * glass と一緒に true にする（ガラスの描き方を、四角・ゆがみなし・強いくもりに切り替える）。
+     */
+    var frozen: Boolean = false
+        set(value) { field = value; invalidate() }
+
+    private var tilesFor: List<PlacedKey>? = null
+    private val tiles = HashMap<PlacedKey, RectF>()
+
+    /** フローズンのタイルの位置：となりのキーとの真ん中まで広げ、端のキーはビューの端まで広げる。 */
+    private fun tileOf(k: PlacedKey): RectF {
+        if (tilesFor !== placedKeys) {
+            tilesFor = placedKeys
+            tiles.clear()
+            val seam = 0f // すき間なし。境目は各タイルの縁の光と陰で分かる
+            for (key in placedKeys) {
+                val b = key.bounds
+                val sameRow = placedKeys.filter { it !== key && it.bounds.centerY() > b.top && it.bounds.centerY() < b.bottom }
+                val sameCol = placedKeys.filter { it !== key && it.bounds.centerX() > b.left && it.bounds.centerX() < b.right }
+                val right = sameRow.filter { it.bounds.left >= b.right - 1f }.minOfOrNull { it.bounds.left }
+                val left = sameRow.filter { it.bounds.right <= b.left + 1f }.maxOfOrNull { it.bounds.right }
+                val below = sameCol.filter { it.bounds.top >= b.bottom - 1f }.minOfOrNull { it.bounds.top }
+                val above = sameCol.filter { it.bounds.bottom <= b.top + 1f }.maxOfOrNull { it.bounds.bottom }
+                tiles[key] = RectF(
+                    if (left != null) (left + b.left) / 2f + seam else 0f,
+                    if (above != null) (above + b.top) / 2f + seam else 0f,
+                    if (right != null) (b.right + right) / 2f - seam else width.toFloat(),
+                    if (below != null) (b.bottom + below) / 2f - seam else height.toFloat(),
+                )
+            }
+        }
+        return tiles[k] ?: k.bounds
+    }
+
+    /** フローズンのときは、使う人の調整にかかわらず「四角・ゆがみなし・強いくもり・影なし」。 */
+    private fun effectiveLensParams(): Lens.Params =
+        if (frozen) Lens.Params(refract = 0f, frost = 0.9f, light = 0.7f, shadow = 0f, square = true) else lensParams
+
     /** ミニマリスト（罫線だけ）で描くか。リキッドグラスより優先しない（glass が true なら glass）。 */
     var minimal: Boolean = false
         set(value) { field = value; invalidate() }
@@ -497,7 +536,7 @@ class FlickKeyboardView @JvmOverloads constructor(
     /** キーの並びか背景が変わっていたら、レンズ画像を裏で作り直す。 */
     private fun ensureLenses() {
         if (!glass) return
-        val signature = "${backdropRevision()}:$left:$top:$width:$height:${System.identityHashCode(placedKeys)}:$lensParams"
+        val signature = "${backdropRevision()}:$left:$top:$width:$height:${System.identityHashCode(placedKeys)}:${effectiveLensParams()}"
         if (signature == lensSignature) return
         lensSignature = signature
         val snapshot = backdropProvider?.invoke()
@@ -507,10 +546,10 @@ class FlickKeyboardView @JvmOverloads constructor(
         val pixels = IntArray(sw * sh)
         snapshot.getPixels(pixels, 0, sw, 0, 0, sw, sh)
         snapshot.recycle()
-        val keys = placedKeys.map { it to RectF(it.bounds) }
+        val keys = placedKeys.map { it to RectF(if (frozen) tileOf(it) else it.bounds) }
         val density = resources.displayMetrics.density
         val labelLight = darkTheme
-        val params = lensParams
+        val params = effectiveLensParams()
         LENS_WORKER.execute {
             val made = HashMap<PlacedKey, Pair<Lens.Result, Lens.Result>>()
             for ((key, rect) in keys) {
@@ -601,9 +640,9 @@ class FlickKeyboardView @JvmOverloads constructor(
             }
         }
 
-        val b = placed.bounds
+        val b = if (frozen) tileOf(placed) else placed.bounds
         glassRect.set(b)
-        if (strength > 0f) {
+        if (strength > 0f && !frozen) {
             // ふくらみ（最大 3dp）と、指の方への伸び（最大 9dp）
             val swell = 3f * d * strength
             glassRect.inset(-swell, -swell)
@@ -613,8 +652,8 @@ class FlickKeyboardView @JvmOverloads constructor(
             if (sx > 0) glassRect.right += sx else glassRect.left += sx
             if (sy > 0) glassRect.bottom += sy else glassRect.top += sy
         }
-        // 角は丸めきる（錠剤の形）。高さか幅の短い方の半分。
-        val r = kotlin.math.min(b.width(), b.height()) / 2f
+        // 角は丸めきる（錠剤の形）。高さか幅の短い方の半分。フローズンは直角。
+        val r = if (frozen) 0f else kotlin.math.min(b.width(), b.height()) / 2f
         val character = placed.spec.style == KeyStyle.CHARACTER
         val rest = if (character) (if (darkTheme) 0x1A else 0x8C) else (if (darkTheme) 0x0D else 0x4D)
         val pressed = if (darkTheme) 0x3D else 0xCC
