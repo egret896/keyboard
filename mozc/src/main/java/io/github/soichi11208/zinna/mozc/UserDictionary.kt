@@ -79,6 +79,8 @@ class UserDictionary(context: Context) {
             val reading = f[0].trim()
             val word = f[1].trim()
             if (reading.isEmpty() || word.isEmpty()) continue
+            // 文字ではないもの（画像やバックアップのような中身）は単語にしない
+            if (looksGarbled(reading) || looksGarbled(word)) continue
             val posField = f.getOrNull(2)?.trim().orEmpty()
             // Gboard は3列目が品詞ではなく言語（ja-JP）。品詞が分からないものは名詞にする。
             val pos = if (posField.isEmpty() || posField.matches(Regex("[A-Za-z]{2}(-[A-Za-z]{2})?"))) {
@@ -91,6 +93,15 @@ class UserDictionary(context: Context) {
         }
         if (added.isNotEmpty()) write(current + added)
         return added.size
+    }
+
+    /** 文字化けした単語（読めない文字・制御文字を含むもの）をまとめて消す。消した語数を返す。 */
+    fun removeGarbled(): Int {
+        val current = entries()
+        val kept = current.filterNot { looksGarbled(it.reading) || looksGarbled(it.word) || looksGarbled(it.comment) }
+        val removed = current.size - kept.size
+        if (removed > 0) write(kept)
+        return removed
     }
 
     /** Appends [entry], or replaces the one at [replacing] when editing. */
@@ -191,6 +202,11 @@ class UserDictionary(context: Context) {
     }
 
     companion object {
+        /** 読めない文字（�）や制御文字が入っていたら、文字化けとみなす。 */
+        fun looksGarbled(text: String): Boolean =
+            text.any { it == '\uFFFD' || (Character.isISOControl(it) && it != '\t') } || text.contains("ZINNABAK")
+
+
         const val REVISION_KEY = "zenzai_dictionary_revision"
         private const val TAG = "UserDictionary"
         private const val FILE_NAME = "user_dictionary.enc"

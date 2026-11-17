@@ -67,7 +67,8 @@ class UserDictionaryActivity : ComponentActivity() {
 private fun UserDictionaryScreen(prefill: String? = null, prefillReading: String = "") {
     val context = LocalContext.current
     val dictionary = remember { UserDictionary(context) }
-    var entries by remember { mutableStateOf(dictionary.entries()) }
+    // 文字化けした単語が入っていたら、開いたときにまとめて消す
+    var entries by remember { dictionary.removeGarbled(); mutableStateOf(dictionary.entries()) }
     var editing by remember { mutableStateOf(if (prefill != null) EditTarget(null, prefill, prefillReading) else null) }
 
     Scaffold(

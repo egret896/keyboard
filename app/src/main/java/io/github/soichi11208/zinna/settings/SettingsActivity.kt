@@ -548,13 +548,27 @@ private fun UserDictionaryCard() {
     // recomposes this screen, and a cached count would show the pre-edit number.
     var count by remember { mutableStateOf(UserDictionary(context).entries().size) }
     var importMessage by remember { mutableStateOf<String?>(null) }
+    // 前に文字化けした単語が入ってしまっていたら、開いたときにまとめて消す
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        val removed = UserDictionary(context).removeGarbled()
+        if (removed > 0) {
+            count = UserDictionary(context).entries().size
+            importMessage = "文字化けした単語を $removed 語消しました"
+        }
+    }
     val pickFile = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument()
     ) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult
-        val text = runCatching {
-            context.contentResolver.openInputStream(uri)?.use { DictionaryFile.read(it.readBytes()) }
+        val bytes = runCatching {
+            context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
         }.getOrNull()
+        // バックアップのファイルをここで選んでしまったときは、読み込まずに案内する
+        if (bytes != null && bytes.size >= 8 && String(bytes, 0, 8, Charsets.US_ASCII) == "ZINNABAK") {
+            importMessage = "これはバックアップのファイルです。「🔒 趣味ボードとプライバシー → バックアップ → 読み込む」から読み込んでください"
+            return@rememberLauncherForActivityResult
+        }
+        val text = bytes?.let { runCatching { DictionaryFile.read(it) }.getOrNull() }
         importMessage = if (text == null) {
             "ファイルを読めませんでした"
         } else {
