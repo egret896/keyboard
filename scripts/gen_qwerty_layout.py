@@ -59,7 +59,7 @@ def switch(label, layout_id, weight=1.0):
 
 
 BACKSPACE = key("⌫", {"type": "backspace"}, 1.5, "MODIFIER", repeatable=True)
-ENTER = key("↵", {"type": "enter"}, 2.0, "ACTION")
+ENTER = key("↵", {"type": "enter"}, 1.3, "ACTION")
 SHIFT = key("⇧", {"type": "shift"}, 1.5, "MODIFIER")
 
 
@@ -99,7 +99,7 @@ LEFT = key("◀", {"type": "cursor", "delta": -1}, 1.0, "MODIFIER", repeatable=T
 RIGHT = key("▶", {"type": "cursor", "delta": 1}, 1.0, "MODIFIER", repeatable=True)
 PANEL = key("☺記", {"type": "panel"}, 1.5, "MODIFIER")
 
-# 4つの画面とも、いちばん下の段はほぼ同じ形：
+# 4つの画面とも、いちばん下の段は同じ幅（参考画像に合わせた。abc は あA1＋?123 の幅）：
 #   [切替] [切替] [,] [  空白  ] [.] [◀] [▶] [↵]
 
 
@@ -115,8 +115,8 @@ def qwerty_kana():
             row([letter(c) for c in HOME] + [key("ー", {"type": "input", "text": "-"})]),
             row([PANEL] + [letter(c) for c in BOTTOM] + [BACKSPACE]),
             space_row(
-                leading=[switch("英数", "qwerty_ascii", 1.4),
-                         switch("?123", "qwerty_symbol", 1.2),
+                leading=[switch("英数", "qwerty_ascii", 1.3),
+                         switch("?123", "qwerty_symbol", 1.3),
                          key("、", {"type": "input", "text": ","}, 1.0)],
                 trailing=[key("。", {"type": "input", "text": "."}, 1.0), LEFT, RIGHT, ENTER],
                 space_label="空白",
@@ -136,8 +136,8 @@ def qwerty_ascii():
             space_row(
                 # 左端はかな画面の「あA1」と同じ場所・同じ働き。連打すると
                 #   かな(フリック) → 英字(ここ) → 数字(電卓配置) → かな … と回る。
-                leading=[switch("あA1", "flick_symbol", 1.4),
-                         switch("?123", "qwerty_symbol", 1.2),
+                leading=[switch("あA1", "flick_symbol", 1.3),
+                         switch("?123", "qwerty_symbol", 1.3),
                          symbol(",")],
                 trailing=[symbol("."), LEFT, RIGHT, ENTER],
             ),
@@ -147,7 +147,7 @@ def qwerty_ascii():
 
 def symbol_bottom():
     return space_row(
-        leading=[switch("abc", "qwerty_ascii", 1.6), symbol(",")],
+        leading=[switch("abc", "qwerty_ascii", 2.6), symbol(",")],
         trailing=[symbol("."), LEFT, RIGHT, ENTER],
     )
 
