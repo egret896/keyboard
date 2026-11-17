@@ -46,6 +46,8 @@ class SymbolPanelView(
         fun isPrivate(): Boolean
         /** 設定画面で登録した定型文。 */
         fun phrases(): List<String>
+        /** 履歴を残す場所の印（趣味ボードは別の場所）。 */
+        fun historySuffix(): String = ""
     }
 
     private enum class Kind(val label: String, val asset: String, val historyKey: String) {
@@ -209,16 +211,24 @@ class SymbolPanelView(
 
     // ---------------------------------------------------------------- 履歴
 
-    private fun history(k: Kind): List<String> =
-        prefs.getString(k.historyKey, null)
+    private fun storedHistory(key: String): List<String> =
+        prefs.getString(key, null)
             ?.split(HISTORY_SEPARATOR)
             ?.filter { it.isNotEmpty() }
             ?: emptyList()
 
+    /** 趣味ボードでは、趣味ボードの履歴のあとに表のボードの履歴も見せる（一方通行）。 */
+    private fun history(k: Kind): List<String> {
+        val suffix = listener.historySuffix()
+        if (suffix.isEmpty()) return storedHistory(k.historyKey)
+        return (storedHistory(k.historyKey + suffix) + storedHistory(k.historyKey)).distinct().take(HISTORY_LIMIT)
+    }
+
     private fun remember(text: String) {
         if (listener.isPrivate()) return
-        val updated = (listOf(text) + history(kind).filter { it != text }).take(HISTORY_LIMIT)
-        prefs.edit().putString(kind.historyKey, updated.joinToString(HISTORY_SEPARATOR)).apply()
+        val key = kind.historyKey + listener.historySuffix()
+        val updated = (listOf(text) + storedHistory(key).filter { it != text }).take(HISTORY_LIMIT)
+        prefs.edit().putString(key, updated.joinToString(HISTORY_SEPARATOR)).apply()
     }
 
     // ---------------------------------------------------------------- グリッド

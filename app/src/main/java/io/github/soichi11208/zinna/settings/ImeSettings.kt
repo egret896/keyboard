@@ -17,7 +17,7 @@ import java.io.File
  * Backed by SharedPreferences rather than DataStore because the IME reads them synchronously while
  * building its input view, on a path where suspending would mean rendering the keyboard twice.
  */
-class ImeSettings(context: Context) {
+class ImeSettings(private val context: Context) {
 
     private val prefs: SharedPreferences =
         context.applicationContext.getSharedPreferences(NAME, Context.MODE_PRIVATE)
@@ -347,6 +347,65 @@ class ImeSettings(context: Context) {
             (backgroundOpacity * 100).toInt() * (1 shl 8) +
             (keyHeightScale * 100).toInt() * (1 shl 20)
 
+    // ---------------------------------------------------------------- 趣味ボード
+    //
+    //  表のボード ── 辞書・履歴を使える ──▶ 趣味ボード
+    //  表のボード ◀── 流れない ─────────── 趣味ボード（ここで覚えた言葉・履歴）
+
+    /** 趣味ボード中か。切り替えるとキーボードを作り直す。 */
+    var hobbyMode: Boolean
+        get() = prefs.getBoolean("hobby_mode", false)
+        set(v) { prefs.edit().putBoolean("hobby_mode", v).apply(); bumpRevision() }
+
+    /** 趣味ボードの背景の色（0＝おまかせの紫）。 */
+    var hobbyBg: Int
+        get() = prefs.getInt("hobby_bg", 0)
+        set(v) { prefs.edit().putInt("hobby_bg", v).apply(); bumpRevision() }
+
+    /** 趣味ボードの文字の色（0＝表のボードと同じ）。 */
+    var hobbyText: Int
+        get() = prefs.getInt("hobby_text", 0)
+        set(v) { prefs.edit().putInt("hobby_text", v).apply(); bumpRevision() }
+
+    var hobbyBackgroundOpacity: Float
+        get() = prefs.getFloat("hobby_bg_opacity", DEFAULT_BACKGROUND_OPACITY)
+        set(v) { prefs.edit().putFloat("hobby_bg_opacity", v.coerceIn(0f, 1f)).apply(); bumpRevision() }
+
+    val hobbyBackgroundImage: File?
+        get() = File(backgroundDir, HOBBY_BACKGROUND_FILE).takeIf { it.isFile }
+
+    fun setHobbyBackgroundImage(bytes: ByteArray) {
+        backgroundDir.mkdirs()
+        File(backgroundDir, HOBBY_BACKGROUND_FILE).writeBytes(bytes)
+        bumpRevision()
+    }
+
+    fun clearHobbyBackgroundImage() {
+        File(backgroundDir, HOBBY_BACKGROUND_FILE).delete()
+        bumpRevision()
+    }
+
+    /** 趣味ボードで覚えた言葉（読み→言葉）。新しい順。 */
+    var hobbyWords: List<Pair<String, String>>
+        get() = prefs.getString("hobby_words", "").orEmpty().split('\n').mapNotNull { line ->
+            val tab = line.indexOf('\t')
+            if (tab <= 0 || tab == line.length - 1) null else line.substring(0, tab) to line.substring(tab + 1)
+        }
+        set(v) {
+            prefs.edit().putString(
+                "hobby_words",
+                v.take(HOBBY_WORD_LIMIT).joinToString("\n") { "${it.first}\t${it.second}" },
+            ).apply()
+        }
+
+    /** 趣味ボードで覚えた言葉と、記号・絵文字の履歴を消す。 */
+    fun clearHobbyLearning() {
+        prefs.edit().remove("hobby_words").apply()
+        context.applicationContext.getSharedPreferences("symbol_panel", Context.MODE_PRIVATE).edit().apply {
+            for (k in listOf("history_symbol", "history_emoji", "history_kaomoji", "history_phrase")) remove(k + HOBBY_SUFFIX)
+        }.apply()
+    }
+
     private fun bumpRevision() {
         prefs.edit().putInt(KEY_REVISION, prefs.getInt(KEY_REVISION, 0) + 1).apply()
     }
@@ -391,6 +450,10 @@ class ImeSettings(context: Context) {
         private const val KEY_REVISION = "revision"
         const val BACKGROUND_DIR = "backgrounds"
         private const val BACKGROUND_FILE = "keyboard_background"
+        private const val HOBBY_BACKGROUND_FILE = "hobby_background"
+        const val HOBBY_WORD_LIMIT = 500
+        /** 趣味ボードの記号・絵文字の履歴は、この印をつけた別の場所に残す。 */
+        const val HOBBY_SUFFIX = "_hobby"
         private const val KEY_HEIGHT_SCALE = "key_height_scale"
         private const val KEY_KEYBOARD_STYLE = "keyboard_style"
         private const val KEY_FLICK_GUIDE = "flick_guide_style"

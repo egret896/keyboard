@@ -98,6 +98,21 @@ class ZinnaImeService : InputMethodService() {
     private var builtFromRevision = Int.MIN_VALUE
 
     private val clipboard = ClipboardHistory()
+    /** 趣味ボードの間にコピーしたもの。表のボードでは出さない。 */
+    private val hobbyClipboard = ClipboardHistory()
+
+    /** コピーされた文字を、今のボード（表／趣味）の履歴に入れる。 */
+    private fun addClip(text: String): Boolean =
+        if (settings.hobbyMode) hobbyClipboard.add(text)
+        // 趣味ボードでコピーしたものが表に流れてこないように
+        else if (text in hobbyClipboard.items()) false
+        else clipboard.add(text)
+
+    private fun recordClip(): Boolean = ClipboardHistory.readText(clipboardManager)?.let(::addClip) ?: false
+
+    /** 今のボードで見せるクリップボード。趣味ボードは表のものも見られる（一方通行）。 */
+    private fun visibleClips(): List<String> =
+        if (settings.hobbyMode) (hobbyClipboard.items() + clipboard.items()).distinct() else clipboard.items()
     private var clipboardManager: ClipboardManager? = null
     private enum class StripContent { IDLE_ACTIONS, CANDIDATES, CLIPBOARD }
     private var stripContent = StripContent.IDLE_ACTIONS
@@ -105,7 +120,7 @@ class ZinnaImeService : InputMethodService() {
     private val clipboardPoller = Executors.newSingleThreadScheduledExecutor()
     private var clipboardPollingActive = false
     private val clipboardListener = ClipboardManager.OnPrimaryClipChangedListener {
-        if (clipboard.record(clipboardManager)) refreshClipboardDisplay()
+        if (recordClip()) refreshClipboardDisplay()
     }
 
     private fun refreshClipboardDisplay() {
@@ -175,7 +190,7 @@ class ZinnaImeService : InputMethodService() {
         clipboardPoller.scheduleWithFixedDelay({
             val text = ClipboardHistory.readText(manager)
             if (text != null) clipboardUiHandler.post {
-                if (clipboardPollingActive && clipboard.add(text)) refreshClipboardDisplay()
+                if (clipboardPollingActive && addClip(text)) refreshClipboardDisplay()
             }
         }, 0, 250, TimeUnit.MILLISECONDS)
         if (!session.isAvailable) {
@@ -198,7 +213,9 @@ class ZinnaImeService : InputMethodService() {
             // panel lifts the keys clear while its own background keeps covering the strip behind
             // the bar, so the keyboard still reaches the bottom of the screen.
             setBackgroundColor(this@ZinnaImeService.theme.backgroundColor)
-            setBackgroundImage(settings.backgroundImage, settings.backgroundOpacity)
+            // 趣味ボードは趣味ボード用の背景画像（なければ画像なし）
+            if (settings.hobbyMode) setBackgroundImage(settings.hobbyBackgroundImage, settings.hobbyBackgroundOpacity)
+            else setBackgroundImage(settings.backgroundImage, settings.backgroundOpacity)
             glass = settings.liquidGlass
             memento = settings.mementoKeys
             mementoStyle = settings.mementoStyle
@@ -329,7 +346,13 @@ class ZinnaImeService : InputMethodService() {
             candidateBackgroundColor = 0x59020A1F,
             candidateTextColor = android.graphics.Color.WHITE,
         ) else themed
-        return applyCustom(looked)
+        val custom = applyCustom(looked)
+        if (!settings.hobbyMode) return custom
+        // 趣味ボード：背景の色（おまかせは深い紫）と文字の色を変える
+        return custom.copy(
+            backgroundColor = settings.hobbyBg.takeIf { it != 0 } ?: HOBBY_DEFAULT_BG,
+            labelColor = settings.hobbyText.takeIf { it != 0 } ?: custom.labelColor,
+        )
     }
 
     /** 設定の「カスタマイズ」タブで変えたもの（文字色・フォント・太さ・大きさ・背景色）を上から重ねる。 */
@@ -370,7 +393,7 @@ class ZinnaImeService : InputMethodService() {
         clientContextValid = false
         isComposing = false
         // Also capture the current clip in case it changed while this service was not running.
-        clipboard.record(clipboardManager)
+        recordClip()
         showIdleActions()
         closeSymbolPanel()
         closeKeyboardMenu()
@@ -955,6 +978,7 @@ class ZinnaImeService : InputMethodService() {
         val hadComposition = isComposing
         if (state.committedText.isNotEmpty() && !state.hasComposition && hadComposition) {
             learnConfirmed(state.committedText)
+            learnHobby(lastState?.preeditReading.orEmpty(), state.committedText)
         }
         val removeOldEditorComposition =
             BackspaceRouting.shouldRemoveOldEditorComposition(
@@ -1036,7 +1060,8 @@ class ZinnaImeService : InputMethodService() {
      */
     private fun decorate(list: List<MozcSession.Candidate>, state: MozcSession.State): List<MozcSession.Candidate> {
         val hidden = settings.hiddenCandidates
-        var out = list
+        // 趣味ボードで覚えた言葉は、趣味ボードのときだけ先頭に出す
+        var out = (hobbyCandidates(state.preeditReading) + list).distinctBy { it.text }
         if (settings.smartCandidates) {
             val calc = SmartCandidates.calculate(state.preedit).mapIndexed { i, t -> MozcSession.Candidate(-2000 - i, t) }
             val dates = SmartCandidates.dateTime(state.preeditReading).mapIndexed { i, t -> MozcSession.Candidate(-3000 - i, t) }
@@ -1134,7 +1159,10 @@ class ZinnaImeService : InputMethodService() {
      */
     private fun onCandidateSelected(candidate: MozcSession.Candidate) {
         forgetDeleted()
-        if (candidate.id < 0 && isComposing) learnConfirmed(candidate.text)
+        if (candidate.id < 0 && isComposing) {
+            learnConfirmed(candidate.text)
+            learnHobby(lastState?.preeditReading.orEmpty(), candidate.text)
+        }
         cancelZenzai()
         candidateView?.expanded = false
         if (candidate.id >= 0) {
@@ -1159,7 +1187,7 @@ class ZinnaImeService : InputMethodService() {
         val view = candidateView ?: return
         view.expanded = false
         val actions = mutableListOf<CandidateStripView.Action>()
-        if (clipboard.items().isNotEmpty()) {
+        if (visibleClips().isNotEmpty()) {
             actions += CandidateStripView.Action("", R.drawable.ic_clipboard, CLIPBOARD_LABEL) { showClipboard() }
         }
         // ↶ ＝ ⌫ で消した文字（全消しも）を戻す。変換をひらがなに戻す機能はやめた
@@ -1167,11 +1195,11 @@ class ZinnaImeService : InputMethodService() {
         actions += CandidateStripView.Action("", R.drawable.ic_one_hand, ONE_HAND_LABEL) {
             setOneHand(if (settings.oneHandMode == 0) settings.oneHandLastSide else 0)
         }
-        // 鍵が閉じている＝プライベート中、開いている＝ふつう。
-        actions += if (settings.privateMode) {
-            CandidateStripView.Action("", R.drawable.ic_lock, PRIVATE_ON_LABEL) { togglePrivateMode() }
+        // 切り替えスイッチ：右＝趣味ボード、左＝表のボード
+        actions += if (settings.hobbyMode) {
+            CandidateStripView.Action("", R.drawable.ic_private_switch_on, HOBBY_ON_LABEL) { toggleHobby() }
         } else {
-            CandidateStripView.Action("", R.drawable.ic_lock_open, PRIVATE_OFF_LABEL) { togglePrivateMode() }
+            CandidateStripView.Action("", R.drawable.ic_private_switch_off, HOBBY_OFF_LABEL) { toggleHobby() }
         }
         view.setActions(actions)
     }
@@ -1184,12 +1212,12 @@ class ZinnaImeService : InputMethodService() {
     private fun showClipboard() {
         val view = candidateView ?: return
         // Opening history must show the current clip even if its change callback is still queued.
-        clipboard.record(clipboardManager)
+        recordClip()
         stripContent = StripContent.CLIPBOARD
         val actions = mutableListOf<CandidateStripView.Action>()
         // キーボードに戻る（アイコンで分かるように）
         actions += CandidateStripView.Action("", R.drawable.ic_keyboard, "キーボードに戻る") { showIdleActions() }
-        for (text in clipboard.items()) {
+        for (text in visibleClips()) {
             // 全文を枠で囲んで表示（新しい順。一覧は上下にスクロールできる）
             actions += CandidateStripView.Action(text, block = true) {
                 if (isComposing) render(session.submit())
@@ -1218,7 +1246,10 @@ class ZinnaImeService : InputMethodService() {
         val keyboard = keyboardView ?: return
         if (isComposing) render(session.submit())
         val panel = symbolPanel ?: SymbolPanelView(this, theme, object : SymbolPanelView.Listener {
-            override fun isPrivate(): Boolean = session.incognito
+            // 趣味ボードは学習しないが、趣味ボード用の履歴は残す
+            override fun isPrivate(): Boolean =
+                settings.privateMode || (session.incognito && !settings.hobbyMode)
+            override fun historySuffix(): String = if (settings.hobbyMode) ImeSettings.HOBBY_SUFFIX else ""
             override fun phrases(): List<String> = settings.phrases
             override fun onPanelText(text: String) {
                 forgetDeleted()
@@ -1255,7 +1286,47 @@ class ZinnaImeService : InputMethodService() {
     private fun applyPrivacy(info: EditorInfo?) {
         val appAsksNoLearning =
             ((info?.imeOptions ?: 0) and EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING) != 0
-        session.setIncognito(settings.privateMode || appAsksNoLearning)
+        // 趣味ボードの間も、ふつうの学習（表のボード）には残さない
+        session.setIncognito(settings.privateMode || settings.hobbyMode || appAsksNoLearning)
+    }
+
+    /**
+     * 表のボード ⇄ 趣味ボード。キーボードを作り直して色・背景を変え、
+     * 全消しと同じ光の波を流して「切り替わった」と分かるようにする。
+     */
+    private fun toggleHobby() {
+        if (isComposing) render(session.submit())
+        settings.hobbyMode = !settings.hobbyMode
+        applyPrivacy(currentInputEditorInfo)
+        setInputView(onCreateInputView())
+        keyboardView?.let { kb -> kb.post { kb.playClearWave() } }
+        showIdleActions()
+    }
+
+    /** 趣味ボードで覚えてよいか（プライベートモードや、学習しないでと頼む欄では覚えない）。 */
+    private fun hobbyCanLearn(): Boolean {
+        val info = currentInputEditorInfo
+        return settings.hobbyMode && !settings.privateMode &&
+            !isPasswordField(info?.inputType ?: 0) &&
+            ((info?.imeOptions ?: 0) and EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING) == 0
+    }
+
+    /** 趣味ボードで確定した言葉を、趣味ボードだけの一覧に覚える。 */
+    private fun learnHobby(reading: String, word: String) {
+        if (!hobbyCanLearn() || reading.isEmpty() || word.isEmpty() || reading == word) return
+        if (word.length > 50 || reading.length > 50 || '\n' in word || '\t' in word) return
+        val pair = reading to word
+        settings.hobbyWords = listOf(pair) + settings.hobbyWords.filter { it != pair }
+    }
+
+    /** 趣味ボードで覚えた言葉のうち、今の読みに合うもの（同じ読み → 読みの続き の順）。 */
+    private fun hobbyCandidates(reading: String): List<MozcSession.Candidate> {
+        if (!settings.hobbyMode || reading.isEmpty()) return emptyList()
+        val words = settings.hobbyWords
+        val exact = words.filter { it.first == reading }
+        val more = words.filter { it.first != reading && it.first.startsWith(reading) }.take(3)
+        return (exact + more).map { it.second }.distinct()
+            .mapIndexed { i, w -> MozcSession.Candidate(-4000 - i, w) }
     }
 
     private fun togglePrivateMode() {
@@ -1387,6 +1458,9 @@ class ZinnaImeService : InputMethodService() {
                         if (settings.flickGuideStyle == FlickGuideStyle.NONE) FlickGuideStyle.PREVIEW else FlickGuideStyle.NONE
                     keyboardView?.guideStyle = guideStyleFor(keyboardView?.layout)
                 },
+                KeyboardMenuView.Item({ if (settings.privateMode) "プライベート：オン" else "プライベート：オフ" }) {
+                    togglePrivateMode()
+                },
                 KeyboardMenuView.Item({ "閉じる" }) { closeKeyboardMenu() },
             ),
         )
@@ -1455,6 +1529,9 @@ class ZinnaImeService : InputMethodService() {
         private const val ONE_HAND_LABEL = "片手モード"
         private const val UNDO_LABEL = "元に戻す"
         private const val PRIVATE_OFF_LABEL = "プライベートモード：オフ"
+        private const val HOBBY_DEFAULT_BG = 0xFF2A1640.toInt()
+        private const val HOBBY_OFF_LABEL = "趣味ボードに切り替える"
+        private const val HOBBY_ON_LABEL = "表のボードに戻す"
         private const val PRIVATE_ON_LABEL = "プライベートモード：オン"
 
         /** これ以上の横幅（dp）なら左右分割にする。Fold7 を開くと約 840dp、閉じると約 400dp。 */

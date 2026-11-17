@@ -81,7 +81,7 @@ private enum class Page(val icon: String, val title: String, val summary: String
     TOUCH("✋", "操作と振動", "振動・⌫で全削除"),
     CONVERT("💡", "変換と候補", "AI変換・予測変換の欄・便利な候補・出さない候補"),
     WORDS("📖", "単語と定型文", "ユーザー辞書・定型文"),
-    PRIVACY("🔒", "プライバシーとバックアップ", "プライベートモード・書き出し／読み込み"),
+    PRIVACY("🔒", "趣味ボードとプライバシー", "趣味ボードの見た目・プライベートモード・バックアップ"),
     INFO("ℹ", "情報", "変換エンジン・辞書・配列"),
 }
 
@@ -135,6 +135,7 @@ private fun SettingsScreen(modifier: Modifier = Modifier) {
                         PhrasesCard()
                     }
                     Page.PRIVACY -> {
+                        HobbyCard()
                         PrivacyCard()
                         BackupCard()
                     }
@@ -435,7 +436,7 @@ private fun PrivacyCard() {
     SectionCard("プライバシー") {
         SettingSwitch(
             title = "プライベートモード",
-            body = "ONの間は入力を学習せず、記号や絵文字の履歴も残しません。キーボード上部の「🔓 プライベート」でも切り替えられます",
+            body = "ONの間は入力を学習せず、記号や絵文字の履歴も残しません。あA1キー長押しのメニューでも切り替えられます",
             checked = privateMode,
         ) { privateMode = it; settings.privateMode = it }
         Text(
@@ -1211,6 +1212,73 @@ private fun HiddenCandidatesCard() {
                     settings.hiddenCandidates = settings.hiddenCandidates - word
                     hidden = settings.hiddenCandidates.sorted()
                 }) { Text("戻す") }
+            }
+        }
+    }
+}
+
+
+/**
+ * 趣味ボード：候補バーの切り替えスイッチで、表のボードと入れかわる。
+ *   表のボード ── 辞書・履歴を使える ──▶ 趣味ボード
+ *   表のボード ◀── 流れない ─────────── 趣味ボードで覚えた言葉・履歴
+ */
+@Composable
+private fun HobbyCard() {
+    val context = LocalContext.current
+    val settings = remember { ImeSettings(context) }
+    var bg by remember { mutableStateOf(settings.hobbyBg) }
+    var text by remember { mutableStateOf(settings.hobbyText) }
+    var hasImage by remember { mutableStateOf(settings.hobbyBackgroundImage != null) }
+    var opacity by remember { mutableStateOf(settings.hobbyBackgroundOpacity) }
+    var learned by remember { mutableStateOf(settings.hobbyWords.size) }
+    var confirmClear by remember { mutableStateOf(false) }
+    val pickImage = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        val bytes = runCatching { context.contentResolver.openInputStream(uri)?.use { it.readBytes() } }.getOrNull()
+        if (bytes != null) { settings.setHobbyBackgroundImage(bytes); hasImage = true }
+    }
+
+    SectionCard("趣味ボード") {
+        Text(
+            "候補バーの切り替えスイッチ（⚪━）で、表のボードと入れかわります。趣味ボードでは表の辞書や履歴を使えますが、" +
+                "趣味ボードで打った言葉・記号の履歴・コピーしたものは表のボードには出ません",
+            style = MaterialTheme.typography.bodySmall,
+        )
+        HorizontalDivider()
+        Text("背景の画像", style = MaterialTheme.typography.bodyLarge)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(onClick = { pickImage.launch(arrayOf("image/*")) }, modifier = Modifier.weight(1f)) {
+                Text(if (hasImage) "変更" else "選択")
+            }
+            OutlinedButton(
+                onClick = { settings.clearHobbyBackgroundImage(); hasImage = false },
+                enabled = hasImage,
+                modifier = Modifier.weight(1f),
+            ) { Text("解除") }
+        }
+        if (hasImage) {
+            Text("画像の濃さ  ${(opacity * 100).toInt()}%", style = MaterialTheme.typography.bodySmall)
+            Slider(
+                value = opacity,
+                onValueChange = { opacity = it },
+                onValueChangeFinished = { settings.hobbyBackgroundOpacity = opacity },
+                valueRange = 0f..1f,
+            )
+        }
+        Text("背景の色（標準＝深い紫）", style = MaterialTheme.typography.bodyMedium)
+        SolidColorPicker(bg) { bg = it; settings.hobbyBg = it }
+        Text("文字の色（標準＝表のボードと同じ）", style = MaterialTheme.typography.bodyMedium)
+        SolidColorPicker(text) { text = it; settings.hobbyText = it }
+        HorizontalDivider()
+        Text("趣味ボードで覚えた言葉：$learned 語", style = MaterialTheme.typography.bodyMedium)
+        if (!confirmClear) {
+            OutlinedButton(onClick = { confirmClear = true }, enabled = learned > 0) { Text("趣味ボードの学習を消す") }
+        } else {
+            Text("覚えた言葉と、趣味ボードの記号・絵文字の履歴を消します。元に戻せません", style = MaterialTheme.typography.bodySmall)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = { settings.clearHobbyLearning(); learned = 0; confirmClear = false }) { Text("消す") }
+                OutlinedButton(onClick = { confirmClear = false }) { Text("やめる") }
             }
         }
     }
