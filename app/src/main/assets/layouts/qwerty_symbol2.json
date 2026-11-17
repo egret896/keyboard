@@ -310,7 +310,13 @@
               "layoutId": "qwerty_ascii"
             }
           },
-          "style": "MODIFIER"
+          "style": "MODIFIER",
+          "longPress": {
+            "label": "メニュー",
+            "action": {
+              "type": "menu"
+            }
+          }
         },
         {
           "weight": 1.0,

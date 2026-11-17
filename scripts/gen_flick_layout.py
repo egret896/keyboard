@@ -170,13 +170,24 @@ ENTER = lambda: action_key("↵", {"type": "enter"})
 # 記号・絵文字・顔文字パネルを開くキー（左上）
 PANEL = lambda: action_key("☺記", {"type": "panel"}, style="MODIFIER")
 # 顔文字のページを直接開くキー（3段目の左）
-KAOMOJI = lambda: action_key("(^^)", {"type": "kaomoji"}, style="MODIFIER")
+def KAOMOJI():
+    key = action_key("(^^)", {"type": "kaomoji"}, style="MODIFIER")
+    key["longPress"] = {"label": "絵文字", "action": {"type": "emoji"}}  # 長押しで絵文字
+    return key
+
+# 長押しで設定などのメニュー
+MENU_LONG_PRESS = {"label": "メニュー", "action": {"type": "menu"}}
+# 「、。?!」キーを長押ししたときに横に並ぶ文字
+PUNC_POPUP = ["、", "。", "？", "！", "…", "・", "ー", "〜", "「", "」"]
 # あ → A → 1 → あ … と順番に切り替えるキー（4段目の左）
 CYCLE_LABEL = "あA1"
 
 
 def switch(label: str, layout_id: str) -> dict:
-    return action_key(label, {"type": "layout", "layoutId": layout_id}, style="MODIFIER")
+    key = action_key(label, {"type": "layout", "layoutId": layout_id}, style="MODIFIER")
+    if label == CYCLE_LABEL:
+        key["longPress"] = MENU_LONG_PRESS
+    return key
 
 
 def build(layout_id: str, label: str, input_style: str, keys: list[dict],
@@ -212,7 +223,7 @@ def build_kana(table: dict[str, str]) -> dict:
     keys = [char_key(table, KANA_KEYS[n]) for n in
             ("a", "ka", "sa", "ta", "na", "ha", "ma", "ya", "ra")]
     keys += [modifier, char_key(table, KANA_KEYS["wa"]),
-             char_key(table, KANA_KEYS["punc"], label="、。?!")]
+             dict(char_key(table, KANA_KEYS["punc"], label="、。?!"), popup=PUNC_POPUP)]
     return build(KANA_ID, "かな (フリック)", "FLICK_HIRAGANA", keys,
                  switch(SYMBOL_LABEL, SYMBOL_ID), switch(CYCLE_LABEL, ASCII_ID))
 

@@ -112,9 +112,76 @@ class FlickKeyboardView @JvmOverloads constructor(
         longPressTouch = null
         touch.firedOnPress = true // 指を離しても普通のタップとして扱わない
         performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
+        val items = touch.key.spec.popup
+        if (!items.isNullOrEmpty()) {
+            // 横に並べて、指をすべらせて選ぶ
+            popupTouch = touch
+            popupIndex = 0
+            updatePopupIndex(touch.x)
+            invalidate()
+            return@Runnable
+        }
         activeTouches.values.remove(touch)
         invalidate()
-        panelLongPressListener?.invoke()
+        val out = touch.key.spec.longPress ?: return@Runnable
+        if (out.action is KeyAction.OpenMenu && panelLongPressListener != null) panelLongPressListener?.invoke()
+        else listener?.onKeyOutput(out, touch.key.spec, FlickDirection.CENTER)
+    }
+
+    // ------------------------------------------------------------ 長押しで横に並ぶ文字
+    //
+    //        ┌──┬──┬──┬──┬──┐
+    //        │、│。│？│！│…│  ← 指を左右にすべらせて選び、離すと入る
+    //        └──┴──┴──┴──┴──┘
+    //              ┌──┐
+    //              │、。│ ← 長押し
+
+    private var popupTouch: Touch? = null
+    private var popupIndex = 0
+    private val popupRect = RectF()
+    private val popupCell = RectF()
+
+    private fun popupLayout(touch: Touch) {
+        val items = touch.key.spec.popup ?: return
+        val b = touch.key.bounds
+        val cellW = kotlin.math.min(b.width() * 0.62f, (width - 8f) / items.size)
+        val cellH = b.height() * 0.9f
+        val total = cellW * items.size
+        var left = b.centerX() - cellW / 2f
+        // 右にはみ出すなら、左へずらす
+        if (left + total > width - 4f) left = width - 4f - total
+        if (left < 4f) left = 4f
+        popupRect.set(left, b.top - cellH - 4f, left + total, b.top - 4f)
+    }
+
+    private fun updatePopupIndex(x: Float) {
+        val touch = popupTouch ?: return
+        val items = touch.key.spec.popup ?: return
+        popupLayout(touch)
+        val cellW = popupRect.width() / items.size
+        val i = ((x - popupRect.left) / cellW).toInt().coerceIn(0, items.size - 1)
+        if (i != popupIndex) {
+            popupIndex = i
+            if (theme.hapticFeedback) performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK)
+        }
+    }
+
+    private fun drawPopup(canvas: Canvas, radius: Float) {
+        val touch = popupTouch ?: return
+        val items = touch.key.spec.popup ?: return
+        popupLayout(touch)
+        guideBackgroundPaint.alpha = 0xF0
+        canvas.drawRoundRect(popupRect, radius, radius, guideBackgroundPaint)
+        guideBackgroundPaint.alpha = 255
+        val cellW = popupRect.width() / items.size
+        items.forEachIndexed { i, s ->
+            popupCell.set(popupRect.left + cellW * i, popupRect.top, popupRect.left + cellW * (i + 1), popupRect.bottom)
+            if (i == popupIndex) canvas.drawRoundRect(popupCell, radius, radius, keyPressedPaint)
+            guideLabelPaint.color = if (i == popupIndex) theme.flickGuideSelectedLabelColor else theme.flickGuideLabelColor
+            val base = popupCell.centerY() - (guideLabelPaint.descent() + guideLabelPaint.ascent()) / 2f
+            canvas.drawText(s, popupCell.centerX(), base, guideLabelPaint)
+        }
+        guideLabelPaint.color = theme.flickGuideLabelColor
     }
 
     private fun cancelPanelLongPress() {
@@ -349,7 +416,9 @@ class FlickKeyboardView @JvmOverloads constructor(
         if (waveT >= 0f || liquidAnimating()) postInvalidateOnAnimation()
 
         // Guides go on top of every key so a guide near the edge is never clipped by a neighbour.
+        drawPopup(canvas, radius)
         for (touch in activeTouches.values) {
+            if (popupTouch === touch) continue
             if (!touch.key.spec.hasFlicks) continue
             when (guideStyle) {
                 FlickGuideStyle.PREVIEW ->
@@ -1181,6 +1250,7 @@ class FlickKeyboardView @JvmOverloads constructor(
             }
 
             MotionEvent.ACTION_CANCEL -> {
+                popupTouch = null
                 cancelPanelLongPress()
                 cancelRepeat()
                 cancelGauge()
@@ -1210,7 +1280,8 @@ class FlickKeyboardView @JvmOverloads constructor(
         activeTouches[pointerId] = touch
         if (theme.hapticFeedback) performHapticFeedback(android.view.HapticFeedbackConstants.KEYBOARD_TAP)
 
-        if (key.spec.center.action is KeyAction.OpenPanel && panelLongPressListener != null) {
+        popupTouch = null
+        if (key.spec.longPress != null || !key.spec.popup.isNullOrEmpty()) {
             longPressTouch = touch
             handler.postDelayed(longPressRunnable, LONG_PRESS_MS)
         }
@@ -1247,12 +1318,14 @@ class FlickKeyboardView @JvmOverloads constructor(
         }
         touch.x = x
         touch.y = y
+        if (popupTouch === touch) { updatePopupIndex(x); invalidate(); return }
         if (glass) invalidate() // 光と伸びが指を追いかける
         val direction = resolveDirection(touch, x, y)
         if (direction != touch.direction) {
             touch.direction = direction
             // Once the finger leaves the centre the key is no longer a hold-to-repeat candidate.
             cancelRepeat()
+            if (direction != FlickDirection.CENTER && longPressTouch === touch) cancelPanelLongPress()
             cancelGauge()
             invalidate()
         }
@@ -1262,6 +1335,15 @@ class FlickKeyboardView @JvmOverloads constructor(
         val touch = activeTouches[pointerId] ?: return
         pressFades[touch.key] = SystemClock.uptimeMillis()
         // 速いフリックは、指を離す直前の動きが届かないことがある。離した位置でも方向を決め直す
+        if (popupTouch === touch) {
+            // 並べた文字の中から、指の位置の1つを入れる
+            popupTouch = null
+            activeTouches.remove(pointerId)
+            val pick = touch.key.spec.popup?.getOrNull(popupIndex)
+            if (pick != null) listener?.onKeyOutput(KeyOutput(pick, KeyAction.Input(pick)), touch.key.spec, FlickDirection.CENTER)
+            invalidate()
+            return
+        }
         if (!touch.firedOnPress) onPointerMove(pointerId, x, y)
         activeTouches.remove(pointerId)
         if (glass) releasing += Releasing(touch.key, touch.x - touch.downX, touch.y - touch.downY, touch.x, touch.y, SystemClock.uptimeMillis())

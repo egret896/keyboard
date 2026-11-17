@@ -51,7 +51,11 @@ def symbol(ch, face=None):
 
 
 def switch(label, layout_id, weight=1.0):
-    return key(label, {"type": "layout", "layoutId": layout_id}, weight, "MODIFIER")
+    spec = key(label, {"type": "layout", "layoutId": layout_id}, weight, "MODIFIER")
+    # 左下の切り替えキーは、長押しで設定などのメニュー
+    if label in ("あA1", "英数", "abc"):
+        spec["longPress"] = {"label": "メニュー", "action": {"type": "menu"}}
+    return spec
 
 
 BACKSPACE = key("⌫", {"type": "backspace"}, 1.5, "MODIFIER", repeatable=True)

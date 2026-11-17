@@ -110,6 +110,9 @@ class SymbolPanelView(
     /** 顔文字のページを開く。 */
     fun showKaomoji() = showKind(Kind.KAOMOJI)
 
+    /** 絵文字のページを開く。 */
+    fun showEmoji() = showKind(Kind.EMOJI)
+
     private fun buildBottomBar(): View {
         val bar = LinearLayout(context).apply {
             orientation = HORIZONTAL

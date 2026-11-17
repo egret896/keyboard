@@ -489,6 +489,10 @@ class ZinnaImeService : InputMethodService() {
 
             is KeyAction.OpenKaomoji -> openSymbolPanel(kaomoji = true)
 
+            is KeyAction.OpenEmoji -> openSymbolPanel(emoji = true)
+
+            is KeyAction.OpenMenu -> openKeyboardMenu()
+
             is KeyAction.ShowImePicker -> {
                 val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
                 imm.showInputMethodPicker()
@@ -1028,7 +1032,7 @@ class ZinnaImeService : InputMethodService() {
      *  [候補バー]          [候補バー]
      *  [キーボード]  →    [記号パネル]
      */
-    private fun openSymbolPanel(kaomoji: Boolean = false) {
+    private fun openSymbolPanel(kaomoji: Boolean = false, emoji: Boolean = false) {
         val root = panelRoot ?: return
         val keyboard = keyboardView ?: return
         if (isComposing) render(session.submit())
@@ -1054,6 +1058,7 @@ class ZinnaImeService : InputMethodService() {
         }
         panel.reset()
         if (kaomoji) panel.showKaomoji()
+        if (emoji) panel.showEmoji()
         keyboard.visibility = View.GONE
         Anim.fadeIn(panel)
         panel.visibility = View.VISIBLE

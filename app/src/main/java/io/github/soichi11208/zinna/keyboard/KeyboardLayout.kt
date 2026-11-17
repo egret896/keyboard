@@ -61,6 +61,10 @@ data class KeySpec(
     val style: KeyStyle = KeyStyle.CHARACTER,
     /** このキーの右に空ける隙間（weight と同じ単位）。左右分割の真ん中に使う。 */
     val gapAfter: Float = 0f,
+    /** 長押ししたときの動き（なければ長押しは何もしない）。 */
+    val longPress: KeyOutput? = null,
+    /** 長押しで横に並べて、指をすべらせて選ぶ文字。 */
+    val popup: List<String>? = null,
 ) {
     fun output(direction: FlickDirection): KeyOutput? = when (direction) {
         FlickDirection.CENTER -> center
@@ -168,6 +172,16 @@ sealed interface KeyAction {
     @Serializable
     @SerialName("kaomoji")
     data object OpenKaomoji : KeyAction
+
+    /** 記号パネルを「絵文字」のページで開く。 */
+    @Serializable
+    @SerialName("emoji")
+    data object OpenEmoji : KeyAction
+
+    /** 設定などのメニュー（キーボードの場所に出す）を開く。 */
+    @Serializable
+    @SerialName("menu")
+    data object OpenMenu : KeyAction
 
     /** Hand control back to the system input method picker. */
     @Serializable

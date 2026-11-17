@@ -264,7 +264,13 @@
               "type": "kaomoji"
             }
           },
-          "style": "MODIFIER"
+          "style": "MODIFIER",
+          "longPress": {
+            "label": "絵文字",
+            "action": {
+              "type": "emoji"
+            }
+          }
         },
         {
           "weight": 1.0,
@@ -394,7 +400,13 @@
               "layoutId": "flick_kana"
             }
           },
-          "style": "MODIFIER"
+          "style": "MODIFIER",
+          "longPress": {
+            "label": "メニュー",
+            "action": {
+              "type": "menu"
+            }
+          }
         },
         {
           "weight": 1.0,
