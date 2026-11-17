@@ -52,6 +52,8 @@ class CandidateStripView(context: Context) : FrameLayout(context) {
             for (i in 0 until container.childCount) {
                 applyTheme(container.getChildAt(i) as TextView)
             }
+            trailing?.let { applyTheme(it) }
+            if (value.candidateFill != 0) setBackgroundColor(value.candidateFill) else background = null
             invalidate()
         }
 
@@ -230,7 +232,7 @@ class CandidateStripView(context: Context) : FrameLayout(context) {
         handle.visibility = if (show) VISIBLE else GONE
         handle.text = if (expanded) "△" else "▽"
         handle.setTextColor(theme.candidateTextColor)
-        handle.setTextSize(TypedValue.COMPLEX_UNIT_SP, theme.labelSizeSp)
+        handle.setTextSize(TypedValue.COMPLEX_UNIT_SP, candidateSizeSp)
         val right = if (show) handleWidth else 0
         for (v in listOf(oneLine, twoRow, wrapped)) {
             if (v.paddingRight != right) v.setPadding(v.paddingLeft, v.paddingTop, right, v.paddingBottom)
@@ -414,9 +416,14 @@ class CandidateStripView(context: Context) : FrameLayout(context) {
         }
     }
 
+    /** 予測変換の文字の大きさ（カスタマイズで変えていなければキーと同じ）。 */
+    private val candidateSizeSp: Float
+        get() = if (theme.candidateLabelSizeSp > 0f) theme.candidateLabelSizeSp else theme.labelSizeSp
+
     private fun applyTheme(view: TextView) {
         val padding = (12 * resources.displayMetrics.density).toInt()
-        view.setTextSize(TypedValue.COMPLEX_UNIT_SP, theme.labelSizeSp)
+        view.setTextSize(TypedValue.COMPLEX_UNIT_SP, candidateSizeSp)
+        view.typeface = io.github.soichi11208.zinna.theme.Fonts.typeface(theme.candidateFont, theme.candidateWeight)
         view.setTextColor(theme.candidateTextColor)
         view.setPadding(padding, padding / 2, padding, padding / 2)
         view.compoundDrawablePadding = padding / 2

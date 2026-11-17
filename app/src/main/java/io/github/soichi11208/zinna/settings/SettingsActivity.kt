@@ -99,6 +99,19 @@ private fun SettingsScreen(modifier: Modifier = Modifier) {
     ) {
         Text("KKKeyboard", style = MaterialTheme.typography.headlineMedium)
 
+        // 上のタブ：「基本」＝今までの設定、「カスタマイズ」＝文字色・フォントなど
+        var tab by remember { mutableStateOf(0) }
+        androidx.compose.material3.TabRow(selectedTabIndex = tab) {
+            for ((i, name) in listOf("基本", "カスタマイズ").withIndex()) {
+                androidx.compose.material3.Tab(selected = tab == i, onClick = { tab = i }, text = { Text(name) })
+            }
+        }
+        if (tab == 1) {
+            CustomizeCard()
+            TestInputField()
+            return@Column
+        }
+
         MyKeyboardCard()
 
         InfoCard(title = "変換エンジン", body = engineStatus)
@@ -923,6 +936,110 @@ private fun PressColorPicker(selected: Int, onPick: (Int) -> Unit) {
         0x66FFFFFF, 0x99FFFFFF.toInt(), 0x66000000, 0x9916CFFB.toInt(), 0x993B82F6.toInt(),
         0x9922C55E.toInt(), 0x99FACC15.toInt(), 0x99F97316.toInt(), 0x99EF4444.toInt(),
         0x99EC4899.toInt(), 0x99A855F7.toInt(), 0x999CA3AF.toInt(),
+    )
+    androidx.compose.foundation.layout.FlowRow(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        for (c in colors) {
+            val shape = androidx.compose.foundation.shape.CircleShape
+            androidx.compose.foundation.layout.Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .size(40.dp)
+                    .then(
+                        if (c == selected) Modifier.border(3.dp, MaterialTheme.colorScheme.primary, shape)
+                        else Modifier.border(1.dp, MaterialTheme.colorScheme.outline, shape)
+                    )
+                    .padding(4.dp)
+                    .background(
+                        if (c == 0) MaterialTheme.colorScheme.surfaceVariant else androidx.compose.ui.graphics.Color(c),
+                        shape,
+                    )
+                    .clickable { onPick(c) },
+            ) {
+                if (c == 0) Text("標準", style = MaterialTheme.typography.labelSmall)
+            }
+        }
+    }
+}
+
+
+/** 「カスタマイズ」タブ：キーボードと予測変換の欄の、文字色・フォント・太さ・大きさ・背景色。 */
+@Composable
+private fun CustomizeCard() {
+    val context = LocalContext.current
+    val settings = remember { ImeSettings(context) }
+    var keyText by remember { mutableStateOf(settings.customKeyText) }
+    var keyFont by remember { mutableStateOf(settings.customKeyFont) }
+    var keyWeight by remember { mutableStateOf(settings.customKeyWeight) }
+    var keyScale by remember { mutableStateOf(settings.customKeyScale) }
+    var kbBg by remember { mutableStateOf(settings.customKeyboardBg) }
+    var candText by remember { mutableStateOf(settings.customCandText) }
+    var candFont by remember { mutableStateOf(settings.customCandFont) }
+    var candWeight by remember { mutableStateOf(settings.customCandWeight) }
+    var candScale by remember { mutableStateOf(settings.customCandScale) }
+    var candBg by remember { mutableStateOf(settings.customCandBg) }
+
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("キーボード", style = MaterialTheme.typography.titleMedium)
+            Text("文字の色", style = MaterialTheme.typography.bodyMedium)
+            SolidColorPicker(keyText) { keyText = it; settings.customKeyText = it }
+            Text("フォント", style = MaterialTheme.typography.bodyMedium)
+            ChoiceRow(io.github.soichi11208.zinna.theme.Fonts.CHOICES, keyFont) { keyFont = it; settings.customKeyFont = it }
+            Text("太さ", style = MaterialTheme.typography.bodyMedium)
+            ChoiceRow(io.github.soichi11208.zinna.theme.Fonts.WEIGHTS, keyWeight) { keyWeight = it; settings.customKeyWeight = it }
+            GlassSlider("文字の大きさ", "小さい", "大きい", keyScale, 0.6f..1.6f, { keyScale = it }) { settings.customKeyScale = keyScale }
+            Text("背景の色（背景画像を設定しているときは画像が優先）", style = MaterialTheme.typography.bodyMedium)
+            SolidColorPicker(kbBg) { kbBg = it; settings.customKeyboardBg = it }
+
+            HorizontalDivider()
+
+            Text("予測変換の欄", style = MaterialTheme.typography.titleMedium)
+            Text("文字の色", style = MaterialTheme.typography.bodyMedium)
+            SolidColorPicker(candText) { candText = it; settings.customCandText = it }
+            Text("フォント", style = MaterialTheme.typography.bodyMedium)
+            ChoiceRow(io.github.soichi11208.zinna.theme.Fonts.CHOICES, candFont) { candFont = it; settings.customCandFont = it }
+            Text("太さ", style = MaterialTheme.typography.bodyMedium)
+            ChoiceRow(io.github.soichi11208.zinna.theme.Fonts.WEIGHTS, candWeight) { candWeight = it; settings.customCandWeight = it }
+            GlassSlider("文字の大きさ", "小さい", "大きい", candScale, 0.6f..1.6f, { candScale = it }) { settings.customCandScale = candScale }
+            Text("背景の色（標準＝塗らない）", style = MaterialTheme.typography.bodyMedium)
+            SolidColorPicker(candBg) { candBg = it; settings.customCandBg = it }
+
+            TextButton(onClick = {
+                settings.resetCustom()
+                keyText = 0; keyFont = ""; keyWeight = 0; keyScale = 1f; kbBg = 0
+                candText = 0; candFont = ""; candWeight = 0; candScale = 1f; candBg = 0
+            }) { Text("カスタマイズを全部もとに戻す") }
+        }
+    }
+}
+
+/** 選択肢をボタンで並べる（選んでいるものは塗りつぶし）。 */
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+@Composable
+private fun <T> ChoiceRow(choices: List<Pair<String, T>>, selected: T, onPick: (T) -> Unit) {
+    androidx.compose.foundation.layout.FlowRow(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        for ((label, value) in choices) {
+            if (value == selected) Button(onClick = { onPick(value) }) { Text(label) }
+            else OutlinedButton(onClick = { onPick(value) }) { Text(label) }
+        }
+    }
+}
+
+/** 塗りつぶしの色の見本。左端の「標準」はテーマの色のまま。 */
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+@Composable
+private fun SolidColorPicker(selected: Int, onPick: (Int) -> Unit) {
+    val colors = listOf(
+        0,
+        0xFFFFFFFF.toInt(), 0xFF000000.toInt(), 0xFFD1D5DB.toInt(), 0xFF4B5563.toInt(), 0xFF1E1E24.toInt(),
+        0xFF0B1F4D.toInt(), 0xFF3B82F6.toInt(), 0xFF16CFFB.toInt(), 0xFF22C55E.toInt(), 0xFFFACC15.toInt(),
+        0xFFF97316.toInt(), 0xFFEF4444.toInt(), 0xFFEC4899.toInt(), 0xFFA855F7.toInt(), 0xFF8B5E3C.toInt(),
     )
     androidx.compose.foundation.layout.FlowRow(
         horizontalArrangement = Arrangement.spacedBy(8.dp),

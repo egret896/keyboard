@@ -37,6 +37,16 @@ data class KeyboardTheme(
      * which then uses [keyColor] and [modifierKeyColor].
      */
     val flatKeys: Boolean = true,
+    /** キーの文字のフォント（"" ＝標準。"serif" など Android のフォント名）。 */
+    val keyFont: String = "",
+    /** キーの文字の太さ（100〜900。0 ＝標準）。 */
+    val keyWeight: Int = 0,
+    /** 予測変換の欄の文字のフォント・太さ・大きさ（sp。0 ＝キーと同じ）。 */
+    val candidateFont: String = "",
+    val candidateWeight: Int = 0,
+    val candidateLabelSizeSp: Float = 0f,
+    /** 予測変換の欄の背景色（0 ＝塗らない＝キーボードの背景がそのまま見える）。 */
+    @Serializable(with = ColorAsStringSerializer::class) val candidateFill: Int = 0,
 ) {
     /**
      * True-black variant for OLED panels, where a black pixel is an unlit pixel.

@@ -179,6 +179,37 @@ class ImeSettings(context: Context) {
         get() = prefs.getInt(KEY_PRESS_COLOR, 0)
         set(value) { prefs.edit().putInt(KEY_PRESS_COLOR, value).apply(); bumpRevision() }
 
+    // ---------------------------------------------------------------- カスタマイズ
+    // 色は ARGB（0 ＝テーマのまま）、フォントは Android のフォント名（"" ＝標準）、
+    // 太さは 100〜900（0 ＝標準）、大きさは倍率（1 ＝そのまま）。
+
+    private fun int(key: String) = prefs.getInt(key, 0)
+    private fun setInt(key: String, v: Int) { prefs.edit().putInt(key, v).apply(); bumpRevision() }
+    private fun str(key: String) = prefs.getString(key, "") ?: ""
+    private fun setStr(key: String, v: String) { prefs.edit().putString(key, v).apply(); bumpRevision() }
+    private fun scale(key: String) = prefs.getFloat(key, 1f)
+    private fun setScale(key: String, v: Float) { prefs.edit().putFloat(key, v).apply(); bumpRevision() }
+
+    var customKeyText: Int get() = int("c_key_text"); set(v) = setInt("c_key_text", v)
+    var customKeyFont: String get() = str("c_key_font"); set(v) = setStr("c_key_font", v)
+    var customKeyWeight: Int get() = int("c_key_weight"); set(v) = setInt("c_key_weight", v)
+    var customKeyScale: Float get() = scale("c_key_scale"); set(v) = setScale("c_key_scale", v)
+    var customKeyboardBg: Int get() = int("c_kb_bg"); set(v) = setInt("c_kb_bg", v)
+    var customCandText: Int get() = int("c_cand_text"); set(v) = setInt("c_cand_text", v)
+    var customCandFont: String get() = str("c_cand_font"); set(v) = setStr("c_cand_font", v)
+    var customCandWeight: Int get() = int("c_cand_weight"); set(v) = setInt("c_cand_weight", v)
+    var customCandScale: Float get() = scale("c_cand_scale"); set(v) = setScale("c_cand_scale", v)
+    var customCandBg: Int get() = int("c_cand_bg"); set(v) = setInt("c_cand_bg", v)
+
+    /** カスタマイズを全部もとに戻す。 */
+    fun resetCustom() {
+        prefs.edit().apply {
+            for (k in listOf("c_key_text", "c_key_font", "c_key_weight", "c_key_scale", "c_kb_bg",
+                "c_cand_text", "c_cand_font", "c_cand_weight", "c_cand_scale", "c_cand_bg")) remove(k)
+        }.apply()
+        bumpRevision()
+    }
+
     /** 予測変換を2行で出すか（false＝1行で横にスクロール）。 */
     var candidateTwoLines: Boolean
         get() = prefs.getBoolean(KEY_CANDIDATE_TWO_LINES, false)

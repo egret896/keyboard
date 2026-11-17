@@ -315,7 +315,7 @@ class ZinnaImeService : InputMethodService() {
         val themed = if (settings.pureBlack) sized.asPureBlack() else sized
         // MEMENTO MORI：色は固定（深い青に白い文字。押した時は水色）
         val moon = settings.mementoStyle == 1
-        return if (settings.mementoKeys) themed.copy(
+        val looked = if (settings.mementoKeys) themed.copy(
             backgroundColor = when (settings.mementoStyle) { 1 -> 0xFF050C1C.toInt(); 3 -> 0xFF041030.toInt(); else -> 0xFF062258.toInt() },
             labelColor = android.graphics.Color.WHITE,
             keyPressedColor = if (moon) 0xFFFFE9A8.toInt() else 0xFF16CFFB.toInt(),
@@ -325,7 +325,22 @@ class ZinnaImeService : InputMethodService() {
             candidateBackgroundColor = 0x59020A1F,
             candidateTextColor = android.graphics.Color.WHITE,
         ) else themed
+        return applyCustom(looked)
     }
+
+    /** 設定の「カスタマイズ」タブで変えたもの（文字色・フォント・太さ・大きさ・背景色）を上から重ねる。 */
+    private fun applyCustom(t: KeyboardTheme): KeyboardTheme = t.copy(
+        labelColor = settings.customKeyText.takeIf { it != 0 } ?: t.labelColor,
+        backgroundColor = settings.customKeyboardBg.takeIf { it != 0 } ?: t.backgroundColor,
+        labelSizeSp = t.labelSizeSp * settings.customKeyScale,
+        keyFont = settings.customKeyFont,
+        keyWeight = settings.customKeyWeight,
+        candidateTextColor = settings.customCandText.takeIf { it != 0 } ?: t.candidateTextColor,
+        candidateFont = settings.customCandFont,
+        candidateWeight = settings.customCandWeight,
+        candidateLabelSizeSp = t.labelSizeSp * settings.customCandScale,
+        candidateFill = settings.customCandBg,
+    )
 
     override fun onStartInputView(info: EditorInfo?, restarting: Boolean) {
         super.onStartInputView(info, restarting)

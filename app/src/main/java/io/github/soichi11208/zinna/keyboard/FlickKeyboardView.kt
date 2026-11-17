@@ -281,6 +281,9 @@ class FlickKeyboardView @JvmOverloads constructor(
         keyPressedPaint.color = if (pressColor != 0) pressColor else theme.keyPressedColor
         modifierPaint.color = theme.modifierKeyColor
         labelPaint.color = theme.labelColor
+        val face = io.github.soichi11208.zinna.theme.Fonts.typeface(theme.keyFont, theme.keyWeight)
+        labelPaint.typeface = face
+        guideLabelPaint.typeface = face
         guideBackgroundPaint.color = theme.flickGuideColor
         guideLabelPaint.color = theme.flickGuideLabelColor
         gaugePaint.color = GAUGE_COLOR
