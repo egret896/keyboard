@@ -116,6 +116,22 @@ jobs:
           cp build/zenzai-android/libzinna_zenzai.so app/src/zenzai/jniLibs/arm64-v8a/
           echo "ok=true" >> "$GITHUB_OUTPUT"
 
+      - name: 専用の署名鍵を金庫から取り出す
+        env:
+          KK_SIGNING: ${{ secrets.KK_SIGNING }}
+        run: |
+          # 金庫の中身は「パスワード:鍵(base64)」。ログには出さない
+          if [ -n "$KK_SIGNING" ]; then
+            mkdir -p signing
+            printf '%s' "${KK_SIGNING#*:}" | base64 -d > signing/private.p12
+            PW="${KK_SIGNING%%:*}"
+            echo "::add-mask::$PW"
+            echo "KK_SIGNING_PASSWORD=$PW" >> "$GITHUB_ENV"
+            echo "専用の鍵で署名します"
+          else
+            echo "::warning::金庫(KK_SIGNING)が空なので、公開の練習用の鍵で署名します"
+          fi
+
       - name: APK をビルド
         run: |
           echo "sdk.dir=$ANDROID_HOME" > local.properties
@@ -127,8 +143,16 @@ jobs:
           # Fold7 は arm64。ABIごとに分かれた APK から arm64 版を選ぶ
           cp "$(ls app/build/outputs/apk/debug/*arm64*.apk | head -1)" dist/my-keyboard.apk
           ls -la dist
-          # 署名が signing/debug.keystore のものか確認（違うと上書きインストールできない）
-          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --print-certs dist/my-keyboard.apk | grep -i "e2489b354b7a88d07072cd661a8ef89bdc49017de133044b5089f1240f05d655"
+          # 署名がいつもの鍵か確認（違うと上書きインストールできない）
+          #   専用の鍵      c63802375a…  （金庫 KK_SIGNING があるとき）
+          #   練習用の鍵    e2489b354b…  （金庫が空のとき）
+          CERTS="$("$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --print-certs dist/my-keyboard.apk)"
+          if [ -f signing/private.p12 ]; then
+            echo "$CERTS" | grep -i "c63802375ae785562b91d7b4d7a8302bed90618a1ec84c780882ef142b718003"
+          else
+            echo "$CERTS" | grep -i "e2489b354b7a88d07072cd661a8ef89bdc49017de133044b5089f1240f05d655"
+          fi
+          rm -f signing/private.p12
 
       - uses: actions/upload-artifact@v4
         with:

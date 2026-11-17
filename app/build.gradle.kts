@@ -51,10 +51,22 @@ android {
     signingConfigs {
         // 毎回同じ鍵で署名する（鍵が変わると上書きインストールできなくなる）
         getByName("debug") {
-            storeFile = rootProject.file("signing/debug.keystore")
-            storePassword = "android"
-            keyAlias = "androiddebugkey"
-            keyPassword = "android"
+            // GitHub の金庫（Secret: KK_SIGNING）から取り出した専用の鍵があれば、それで署名する。
+            // 鍵はリポジトリには入れない。なければ（手元でのビルドなど）公開の練習用の鍵を使う。
+            val privateKey = rootProject.file("signing/private.p12")
+            val privatePassword = System.getenv("KK_SIGNING_PASSWORD")
+            if (privateKey.isFile && !privatePassword.isNullOrEmpty()) {
+                storeFile = privateKey
+                storeType = "PKCS12"
+                storePassword = privatePassword
+                keyAlias = "kk"
+                keyPassword = privatePassword
+            } else {
+                storeFile = rootProject.file("signing/debug.keystore")
+                storePassword = "android"
+                keyAlias = "androiddebugkey"
+                keyPassword = "android"
+            }
         }
         if (signing != null) {
             create("release") {

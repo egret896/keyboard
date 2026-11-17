@@ -37,3 +37,7 @@ keystore.properties
 
 # Dictionary sources for the system dictionary build
 /third_party/dictionaries/
+
+# 専用の署名鍵（金庫から取り出したもの。絶対にコミットしない）
+signing/private.p12
+*.p12
