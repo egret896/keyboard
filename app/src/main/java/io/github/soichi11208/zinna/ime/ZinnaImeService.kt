@@ -492,6 +492,8 @@ class ZinnaImeService : InputMethodService() {
 
             is KeyAction.Katakana -> convertToKatakana()
 
+            is KeyAction.HalfWidth -> convertToHalfWidth()
+
             // With something composing, this converts; with nothing to convert it behaves as
             // Enter. Inserting a space there would be the desktop behaviour and is not what a
             // 確定 key on a phone should do.
@@ -576,6 +578,31 @@ class ZinnaImeService : InputMethodService() {
         render(session.revert())
         currentInputConnection?.commitText(katakana, 1)
         clientContextValid = false
+    }
+
+    /**
+     * 空白キーの上フリック：入力中の文字のうち、全角の記号・英数字だけを半角にして確定する。
+     *   （１２：３０）！ → (12:30)!     ひらがな・カタカナはそのまま
+     */
+    private fun convertToHalfWidth() {
+        if (!isComposing) return
+        val state = lastState ?: return
+        val half = toHalfWidth(state.preedit)
+        render(session.revert())
+        currentInputConnection?.commitText(half, 1)
+        clientContextValid = false
+    }
+
+    private fun toHalfWidth(text: String): String = buildString {
+        for (c in text) append(
+            when (c) {
+                in '！'..'～' -> c - 0xFEE0
+                '　' -> ' '
+                '「' -> '｢'; '」' -> '｣'; '、' -> '､'; '。' -> '｡'; '・' -> '･'
+                '〜' -> '~'; '￥' -> '\\'; '”', '“' -> '"'; '’', '‘' -> '\''
+                else -> c
+            }
+        )
     }
 
     private fun toKatakana(text: String): String = buildString {

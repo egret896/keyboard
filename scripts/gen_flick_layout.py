@@ -165,6 +165,8 @@ CURSOR_RIGHT = lambda: action_key("▶", {"type": "cursor", "delta": 1}, repeata
 def SPACE():
     key = action_key("␣", {"type": "space"})
     key["down"] = {"label": "カナ", "action": {"type": "katakana"}}
+    # 入力中に上フリックすると、全角の記号・英数字を半角にして確定する
+    key["up"] = {"label": "半角", "action": {"type": "halfwidth"}}
     return key
 ENTER = lambda: action_key("↵", {"type": "enter"})
 # 記号・絵文字・顔文字パネルを開くキー（左上）

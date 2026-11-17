@@ -134,6 +134,11 @@ sealed interface KeyAction {
     @SerialName("katakana")
     data object Katakana : KeyAction
 
+    /** 入力中の全角の記号・英数字を半角にして確定する（空白キーの上フリック）。 */
+    @Serializable
+    @SerialName("halfwidth")
+    data object HalfWidth : KeyAction
+
     /** Convert the current composition, or insert a full-width space when idle. */
     @Serializable
     @SerialName("convert")

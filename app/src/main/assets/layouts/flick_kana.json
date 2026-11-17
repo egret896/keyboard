@@ -433,6 +433,12 @@
             "action": {
               "type": "katakana"
             }
+          },
+          "up": {
+            "label": "半角",
+            "action": {
+              "type": "halfwidth"
+            }
           }
         }
       ]
