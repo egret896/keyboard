@@ -169,11 +169,10 @@ def SPACE():
 ENTER = lambda: action_key("↵", {"type": "enter"})
 # 記号・絵文字・顔文字パネルを開くキー（左上）
 PANEL = lambda: action_key("☺記", {"type": "panel"}, style="MODIFIER")
-# 顔文字のページを直接開くキー（3段目の左）
+# 編集ボタンを出すキー（3段目の左）
 def KAOMOJI():
-    key = action_key("(^^)", {"type": "kaomoji"}, style="MODIFIER")
-    key["longPress"] = {"label": "絵文字", "action": {"type": "emoji"}}  # 長押しで絵文字
-    return key
+    # 名前は前のまま。中身は「編集」キー（全選択・切り取り・コピー・貼り付け）
+    return action_key("編集", {"type": "edit"}, style="MODIFIER")
 
 # 長押しで設定などのメニュー
 MENU_LONG_PRESS = {"label": "メニュー", "action": {"type": "menu"}}
@@ -200,7 +199,7 @@ def build(layout_id: str, label: str, input_style: str, keys: list[dict],
     k = keys
     rows = [
         # 左上は「☺記」（前は「↶ 戻す」だったが、使わないので外した）。
-        # 3段目の左は顔文字のページを直接開くキー。
+        # 3段目の左は「編集」キー（全選択・切り取り・コピー・貼り付け）。
         {"keys": [PANEL(), k[0], k[1], k[2], BACKSPACE()]},
         {"keys": [CURSOR_LEFT(), k[3], k[4], k[5], CURSOR_RIGHT()]},
         {"keys": [KAOMOJI(), k[6], k[7], k[8], SPACE()]},

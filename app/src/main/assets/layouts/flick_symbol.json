@@ -259,18 +259,12 @@
         {
           "weight": 1.0,
           "center": {
-            "label": "(^^)",
+            "label": "編集",
             "action": {
-              "type": "kaomoji"
+              "type": "edit"
             }
           },
-          "style": "MODIFIER",
-          "longPress": {
-            "label": "絵文字",
-            "action": {
-              "type": "emoji"
-            }
-          }
+          "style": "MODIFIER"
         },
         {
           "weight": 1.0,

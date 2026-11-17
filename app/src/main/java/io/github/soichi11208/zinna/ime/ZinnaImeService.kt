@@ -493,6 +493,8 @@ class ZinnaImeService : InputMethodService() {
 
             is KeyAction.OpenMenu -> openKeyboardMenu()
 
+            is KeyAction.OpenEdit -> openEditMenu()
+
             is KeyAction.ShowImePicker -> {
                 val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
                 imm.showInputMethodPicker()
@@ -1105,7 +1107,44 @@ class ZinnaImeService : InputMethodService() {
     private var keyboardMenu: KeyboardMenuView? = null
 
     /** 「☺記」長押しで、キーボードの場所にメニューを出す。 */
+    /**
+     * 「編集」キー：キーボードの場所に編集ボタンを出す。押しても閉じないので、
+     * 全選択 → コピー のように続けて押せる。⌨ 戻る で閉じる。
+     *   ┌────────┬────────┐
+     *   │ 全選択  │ 切り取り │
+     *   ├────────┼────────┤
+     *   │ コピー  │ 貼り付け │
+     *   ├────┬────┬───────┤
+     *   │ ◀  │ ▶  │ ⌨ 戻る │
+     */
+    private fun openEditMenu() {
+        fun edit(id: Int) {
+            if (isComposing) render(session.submit())
+            currentInputConnection?.performContextMenuAction(id)
+        }
+        showMenu(listOf(
+            listOf(
+                KeyboardMenuView.Item({ "全選択" }) { edit(android.R.id.selectAll) },
+                KeyboardMenuView.Item({ "切り取り" }) { edit(android.R.id.cut) },
+            ),
+            listOf(
+                KeyboardMenuView.Item({ "コピー" }) { edit(android.R.id.copy) },
+                KeyboardMenuView.Item({ "貼り付け" }) { edit(android.R.id.paste) },
+            ),
+            listOf(
+                KeyboardMenuView.Item({ "◀" }) { handleCursorMove(-1) },
+                KeyboardMenuView.Item({ "▶" }) { handleCursorMove(1) },
+                KeyboardMenuView.Item({ "⌨ 戻る" }) { closeKeyboardMenu() },
+            ),
+        ))
+    }
+
     private fun openKeyboardMenu() {
+        showMenu(settingsMenuItems())
+    }
+
+    /** キーボードの場所にボタンの並び（メニュー）を出す。 */
+    private fun showMenu(items: List<List<KeyboardMenuView.Item>>) {
         val root = panelRoot ?: return
         val keyboard = keyboardView ?: return
         if (isComposing) render(session.submit())
@@ -1117,7 +1156,14 @@ class ZinnaImeService : InputMethodService() {
             it.height = keysHeightPx
             menu.layoutParams = it
         }
-        menu.setItems(listOf(
+        menu.setItems(items)
+        symbolPanel?.visibility = View.GONE
+        keyboard.visibility = View.GONE
+        menu.visibility = View.VISIBLE
+        Anim.fadeIn(menu)
+    }
+
+    private fun settingsMenuItems(): List<List<KeyboardMenuView.Item>> = listOf(
             listOf(
                 KeyboardMenuView.Item({ "アプリ設定" }) {
                     closeKeyboardMenu()
@@ -1152,12 +1198,7 @@ class ZinnaImeService : InputMethodService() {
                 },
                 KeyboardMenuView.Item({ "閉じる" }) { closeKeyboardMenu() },
             ),
-        ))
-        symbolPanel?.visibility = View.GONE
-        keyboard.visibility = View.GONE
-        menu.visibility = View.VISIBLE
-        Anim.fadeIn(menu)
-    }
+        )
 
     private fun closeKeyboardMenu() {
         keyboardMenu?.visibility = View.GONE

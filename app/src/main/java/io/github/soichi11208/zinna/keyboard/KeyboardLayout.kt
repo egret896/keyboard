@@ -183,6 +183,11 @@ sealed interface KeyAction {
     @SerialName("menu")
     data object OpenMenu : KeyAction
 
+    /** 編集ボタン（全選択・切り取り・コピー・貼り付け）を出す。 */
+    @Serializable
+    @SerialName("edit")
+    data object OpenEdit : KeyAction
+
     /** Hand control back to the system input method picker. */
     @Serializable
     @SerialName("ime_picker")
