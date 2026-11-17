@@ -51,21 +51,24 @@ class UserDictionaryActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         // キーボードの「編集 → 単語登録」から来たときは、選んでいた文字が入っている
         val prefill = intent?.getStringExtra(EXTRA_WORD)
-        setContent { ZinnaTheme { UserDictionaryScreen(prefill) } }
+        // 候補の長押し →「辞書登録」から来たときは、読みも入っている
+        val prefillReading = intent?.getStringExtra(EXTRA_READING).orEmpty()
+        setContent { ZinnaTheme { UserDictionaryScreen(prefill, prefillReading) } }
     }
 
     companion object {
         const val EXTRA_WORD = "word"
+        const val EXTRA_READING = "reading"
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun UserDictionaryScreen(prefill: String? = null) {
+private fun UserDictionaryScreen(prefill: String? = null, prefillReading: String = "") {
     val context = LocalContext.current
     val dictionary = remember { UserDictionary(context) }
     var entries by remember { mutableStateOf(dictionary.entries()) }
-    var editing by remember { mutableStateOf(if (prefill != null) EditTarget(null, prefill) else null) }
+    var editing by remember { mutableStateOf(if (prefill != null) EditTarget(null, prefill, prefillReading) else null) }
 
     Scaffold(
         topBar = { TopAppBar(title = { Text("ユーザー辞書") }) },
@@ -102,6 +105,7 @@ private fun UserDictionaryScreen(prefill: String? = null) {
         EntryDialog(
             initial = target.entry,
             prefillWord = target.prefillWord,
+            prefillReading = target.prefillReading,
             onDismiss = { editing = null },
             onSave = { updated ->
                 entries = dictionary.save(updated, replacing = target.entry)
@@ -118,7 +122,11 @@ private fun UserDictionaryScreen(prefill: String? = null) {
 }
 
 /** null [entry] means "adding", otherwise the row being edited. */
-private data class EditTarget(val entry: UserDictionary.Entry?, val prefillWord: String = "")
+private data class EditTarget(
+    val entry: UserDictionary.Entry?,
+    val prefillWord: String = "",
+    val prefillReading: String = "",
+)
 
 @Composable
 private fun EntryRow(entry: UserDictionary.Entry, onClick: () -> Unit) {
@@ -141,11 +149,12 @@ private fun EntryRow(entry: UserDictionary.Entry, onClick: () -> Unit) {
 private fun EntryDialog(
     initial: UserDictionary.Entry?,
     prefillWord: String = "",
+    prefillReading: String = "",
     onDismiss: () -> Unit,
     onSave: (UserDictionary.Entry) -> Unit,
     onDelete: (() -> Unit)?,
 ) {
-    var reading by remember { mutableStateOf(initial?.reading.orEmpty()) }
+    var reading by remember { mutableStateOf(initial?.reading ?: prefillReading) }
     var word by remember { mutableStateOf(initial?.word ?: prefillWord) }
     var pos by remember { mutableStateOf(initial?.pos ?: UserDictionary.DEFAULT_POS) }
     var comment by remember { mutableStateOf(initial?.comment.orEmpty()) }

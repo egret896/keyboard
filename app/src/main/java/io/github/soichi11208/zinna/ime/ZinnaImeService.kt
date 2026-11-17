@@ -229,7 +229,7 @@ class ZinnaImeService : InputMethodService() {
         val candidates = CandidateStripView(this).apply {
             theme = this@ZinnaImeService.theme
             listener = CandidateStripView.OnCandidateSelectedListener(::onCandidateSelected)
-            longPressListener = ::hideCandidate
+            longPressListener = ::openCandidateMenu
             twoLines = settings.candidateTwoLines
             // Expanding covers the keyboard rather than squeezing it: a two-row keyboard is not
             // usable, and there is nothing to type while reading the list anyway.
@@ -1023,7 +1023,35 @@ class ZinnaImeService : InputMethodService() {
         return if (hidden.isEmpty()) out else out.filter { it.text !in hidden }
     }
 
-    /** 候補を長押し：その候補を今後出さない（設定の「カスタマイズ」で戻せる）。 */
+    /**
+     * 候補を長押し：「辞書登録」か「候補から削除」かを選ぶメニューを出す。
+     * 入力中の文字は確定せずにそのまま残す（戻るを押せば続きを打てる）。
+     */
+    private fun openCandidateMenu(candidate: MozcSession.Candidate) {
+        val reading = lastState?.preeditReading.orEmpty()
+        val word = candidate.text.take(100)
+        showMenu(listOf(
+            listOf(KeyboardMenuView.Item({ "「$word」" }) { }),
+            listOf(
+                KeyboardMenuView.Item({ "📖 辞書登録" }) {
+                    closeKeyboardMenu()
+                    startActivity(
+                        Intent(this, UserDictionaryActivity::class.java)
+                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            .putExtra(UserDictionaryActivity.EXTRA_WORD, word)
+                            .putExtra(UserDictionaryActivity.EXTRA_READING, reading.take(100))
+                    )
+                },
+                KeyboardMenuView.Item({ "🗑 候補から削除" }) {
+                    closeKeyboardMenu()
+                    hideCandidate(candidate)
+                },
+            ),
+            listOf(KeyboardMenuView.Item({ "⌨ 戻る" }) { closeKeyboardMenu() }),
+        ), submitComposition = false)
+    }
+
+    /** 候補から削除：その候補を今後出さない（設定の「カスタマイズ」で戻せる）。 */
     private fun hideCandidate(candidate: MozcSession.Candidate) {
         settings.hiddenCandidates = settings.hiddenCandidates + candidate.text
         Toast.makeText(this, "「${candidate.text}」を候補に出さないようにしました（設定で戻せます）", Toast.LENGTH_SHORT).show()
@@ -1283,10 +1311,10 @@ class ZinnaImeService : InputMethodService() {
     }
 
     /** キーボードの場所にボタンの並び（メニュー）を出す。 */
-    private fun showMenu(items: List<List<KeyboardMenuView.Item>>) {
+    private fun showMenu(items: List<List<KeyboardMenuView.Item>>, submitComposition: Boolean = true) {
         val root = panelRoot ?: return
         val keyboard = keyboardView ?: return
-        if (isComposing) render(session.submit())
+        if (submitComposition && isComposing) render(session.submit())
         val menu = keyboardMenu ?: KeyboardMenuView(this, theme).also {
             root.addView(it, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, keysHeightPx))
             keyboardMenu = it
