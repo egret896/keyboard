@@ -1027,7 +1027,8 @@ class ZinnaImeService : InputMethodService() {
         // キーボードに戻る（アイコンで分かるように）
         actions += CandidateStripView.Action("", R.drawable.ic_keyboard, "キーボードに戻る") { showIdleActions() }
         for (text in clipboard.items()) {
-            actions += CandidateStripView.Action(chipLabel(text)) {
+            // 全文を枠で囲んで表示（新しい順。一覧は上下にスクロールできる）
+            actions += CandidateStripView.Action(text, block = true) {
                 if (isComposing) render(session.submit())
                 currentInputConnection?.commitText(text, 1)
                 showIdleActions()

@@ -5,4 +5,5 @@
       setting the same drawable again — assigning one costs a layout pass whether it changed or not.
     -->
     <item name="chip_icon" type="id" />
+    <item name="chip_block" type="id" />
 </resources>

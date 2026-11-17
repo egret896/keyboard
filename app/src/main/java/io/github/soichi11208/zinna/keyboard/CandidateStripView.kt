@@ -41,8 +41,47 @@ class CandidateStripView(context: Context) : FrameLayout(context) {
         val iconRes: Int = 0,
         /** アイコンだけのボタンの説明（読み上げ用）。 */
         val description: String? = null,
+        /** true なら横いっぱいの枠で囲み、全文を何行でも表示する（クリップボードの一覧）。 */
+        val block: Boolean = false,
         val onSelected: () -> Unit,
     )
+
+    /**
+     * クリップボードの1件ぶんの見た目にする（block=true）か、ふつうの候補に戻すか。
+     *   ┌──────────────────────────┐
+     *   │ コピーした文章が、長くても │
+     *   │ 全部見える                 │
+     *   └──────────────────────────┘
+     */
+    private fun styleBlock(view: TextView, block: Boolean) {
+        val was = view.getTag(R.id.chip_block) == true
+        if (was == block) return
+        view.setTag(R.id.chip_block, block)
+        val d = resources.displayMetrics.density
+        if (block) {
+            view.isSingleLine = false
+            view.maxLines = Int.MAX_VALUE
+            view.ellipsize = null
+            view.gravity = Gravity.START or Gravity.CENTER_VERTICAL
+            view.minWidth = 100_000 // 横いっぱい（入れ物の幅で止まる）
+            val frame = android.graphics.drawable.GradientDrawable().apply {
+                cornerRadius = 10f * d
+                setStroke((1f * d).toInt(), (theme.candidateTextColor and 0x00FFFFFF) or 0x55000000)
+                setColor((theme.candidateTextColor and 0x00FFFFFF) or 0x0F000000)
+            }
+            val gap = (4f * d).toInt()
+            view.background = android.graphics.drawable.InsetDrawable(frame, gap, gap, gap, gap)
+            val pad = (14f * d).toInt()
+            view.setPadding(pad, pad, pad, pad)
+        } else {
+            view.isSingleLine = true
+            view.gravity = Gravity.CENTER
+            view.minWidth = 0
+            view.background = null
+            val pad = (12 * d).toInt()
+            view.setPadding(pad, pad / 2, pad, pad / 2)
+        }
+    }
 
     var listener: OnCandidateSelectedListener? = null
 
@@ -284,6 +323,7 @@ class CandidateStripView(context: Context) : FrameLayout(context) {
 
         candidates.forEachIndexed { index, candidate ->
             val view = container.getChildAt(index) as TextView
+            styleBlock(view, false)
             view.tag = candidate
             if (view.text != candidate.text) view.text = candidate.text
             // A chip reused from the idle actions still has their icon attached.
@@ -331,6 +371,7 @@ class CandidateStripView(context: Context) : FrameLayout(context) {
 
         actions.forEachIndexed { index, action ->
             val view = container.getChildAt(index) as TextView
+            styleBlock(view, action.block)
             view.tag = action
             if (view.text != action.label) view.text = action.label
             if (view.getTag(R.id.chip_icon) != action.iconRes) {
@@ -343,7 +384,7 @@ class CandidateStripView(context: Context) : FrameLayout(context) {
             val iconOnly = action.label.isEmpty() && action.iconRes != 0
             val pad = ((if (iconOnly) 18 else 12) * resources.displayMetrics.density).toInt()
             view.compoundDrawablePadding = if (iconOnly) 0 else pad / 2
-            view.setPadding(pad, view.paddingTop, pad, view.paddingBottom)
+            if (!action.block) view.setPadding(pad, view.paddingTop, pad, view.paddingBottom)
         }
 
         if (focusedChild != -1) {
