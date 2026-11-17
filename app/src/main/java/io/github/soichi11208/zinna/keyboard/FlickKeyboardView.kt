@@ -717,9 +717,11 @@ class FlickKeyboardView @JvmOverloads constructor(
                         val inset = b.height() * 0.24f
                         rules += floatArrayOf(x, b.top + inset, x, b.bottom - inset)
                     }
-                // 下どなりとの間に横線
+                // 下の段との間に横線。キーごとに「自分の幅」で引く。
+                // （前は真下のキーを中心で探していたので、QWERTYのように段がずれていると
+                //   線が切れたり、すき間に飛び出したりしていた）
                 placedKeys.filter { it !== k && it.bounds.top >= b.bottom - 1f &&
-                    it.bounds.centerX() > b.left && it.bounds.centerX() < b.right }
+                    it.bounds.right > b.left && it.bounds.left < b.right }
                     .minByOrNull { it.bounds.top }?.let { n ->
                         val y = (b.bottom + n.bounds.top) / 2f
                         val inset = min(b.width() * 0.16f, b.height() * 0.3f)
@@ -1364,6 +1366,14 @@ class FlickKeyboardView @JvmOverloads constructor(
      */
     private fun hitKey(x: Float, y: Float): PlacedKey? {
         placedKeys.firstOrNull { it.bounds.contains(x, y) }?.let { return it }
+        // 同じ段の高さなら、段の端の余白（QWERTYの a の左など）を押しても、その段のいちばん近いキー
+        val gap = theme.keyGapDp * resources.displayMetrics.density
+        placedKeys.filter { y >= it.bounds.top - gap && y <= it.bounds.bottom + gap }
+            .minByOrNull { maxOf(it.bounds.left - x, 0f, x - it.bounds.right) }
+            ?.let { k ->
+                val dx = maxOf(k.bounds.left - x, 0f, x - k.bounds.right)
+                if (dx <= k.bounds.width()) return k
+            }
         val reach = 12f * resources.displayMetrics.density
         var best: PlacedKey? = null
         var bestDist = Float.MAX_VALUE
