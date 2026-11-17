@@ -348,6 +348,7 @@ class ZinnaImeService : InputMethodService() {
 
     override fun onStartInputView(info: EditorInfo?, restarting: Boolean) {
         super.onStartInputView(info, restarting)
+        forgetDeleted()
         selStart = info?.initialSelStart ?: -1
         selEnd = info?.initialSelEnd ?: -1
         zenzai.setEnabled(settings.zenzaiPlusEnabled)
@@ -458,6 +459,13 @@ class ZinnaImeService : InputMethodService() {
 
     private fun onKeyOutput(output: KeyOutput, key: KeySpec, direction: FlickDirection) {
         toggleTimeout.cancel()
+        // ⌫ 以外を押したら、「消した文字を戻す」は忘れる（カーソル移動や画面切り替えは除く）
+        when (output.action) {
+            is KeyAction.Backspace, is KeyAction.MoveCursor, is KeyAction.SwitchLayout, is KeyAction.Shift,
+            is KeyAction.OpenPanel, is KeyAction.OpenKaomoji, is KeyAction.OpenEmoji, is KeyAction.OpenMenu,
+            is KeyAction.OpenEdit -> Unit
+            else -> forgetDeleted()
+        }
         when (val action = output.action) {
             is KeyAction.Input -> {
                 refreshClientContext()
@@ -584,12 +592,15 @@ class ZinnaImeService : InputMethodService() {
         val ic = currentInputConnection ?: return
         ic.beginBatchEdit()
         ic.finishComposingText()
-        val before = ic.getTextBeforeCursor(CLEAR_ALL_MAX_CHARS, 0)?.length ?: 0
-        val selected = ic.getSelectedText(0)?.length ?: 0
-        if (selected > 0) ic.commitText("", 1)
-        ic.deleteSurroundingText(before, 0)
+        val beforeText = ic.getTextBeforeCursor(CLEAR_ALL_MAX_CHARS, 0)?.toString().orEmpty()
+        val selectedText = ic.getSelectedText(0)?.toString().orEmpty()
+        deletedBuffer.setLength(0)
+        rememberDeleted(beforeText + selectedText)
+        if (selectedText.isNotEmpty()) ic.commitText("", 1)
+        ic.deleteSurroundingText(beforeText.length, 0)
         ic.endBatchEdit()
         clientContextValid = false
+        showIdleActions()
     }
 
     /**
@@ -685,6 +696,31 @@ class ZinnaImeService : InputMethodService() {
         render(state)
     }
 
+    // ---------------------------------------------------------------- 消した文字を戻す
+    //
+    //  ⌫ で消した文字（全消しも）を覚えておき、候補バーに「↶ ○○ を戻す」を出す。
+    //  ほかのキーを押したら忘れる。
+    //    今日は晴れ|  →  ⌫⌫  →  今日は|   [↶「晴れ」を戻す]  →  今日は晴れ|
+
+    private val deletedBuffer = StringBuilder()
+
+    private fun rememberDeleted(text: String) {
+        if (text.isEmpty()) return
+        deletedBuffer.insert(0, text) // 続けて消した文字は前につなげる
+        if (deletedBuffer.length > CLEAR_ALL_MAX_CHARS) deletedBuffer.setLength(CLEAR_ALL_MAX_CHARS)
+    }
+
+    private fun forgetDeleted() { deletedBuffer.setLength(0) }
+
+    private fun restoreDeleted() {
+        val text = deletedBuffer.toString()
+        if (text.isEmpty()) return
+        if (isComposing) render(session.submit())
+        currentInputConnection?.commitText(text, 1)
+        forgetDeleted()
+        showIdleActions()
+    }
+
     private fun handleBackspace() {
         // Route from the state before sending Backspace. Deleting the final composing character
         // returns an empty Mozc state, but that must not turn the same key into an editor delete.
@@ -696,12 +732,22 @@ class ZinnaImeService : InputMethodService() {
             // drag of the handles, Select All from its own menu — and only some of that reaches
             // onUpdateSelection. A null answer means the editor will not say, so the ordinary
             // single-character delete stands.
-            val hasSelection = !ic.getSelectedText(0).isNullOrEmpty()
+            val selected = ic.getSelectedText(0)
+            val hasSelection = !selected.isNullOrEmpty()
             when (BackspaceRouting.editorDeletion(hadComposition, hasSelection)) {
                 EditorDeletion.NONE -> Unit
                 // Committing empty text is what replaces a selection; deleting around it would not.
-                EditorDeletion.SELECTION -> ic.commitText("", 1)
-                EditorDeletion.PRECEDING_CHARACTER -> ic.deleteSurroundingText(1, 0)
+                EditorDeletion.SELECTION -> {
+                    rememberDeleted(selected.toString())
+                    ic.commitText("", 1)
+                }
+                EditorDeletion.PRECEDING_CHARACTER -> {
+                    // 消す1文字を覚えておく（すぐ「戻す」で戻せるように）。絵文字などの2つ組の文字もまとめて
+                    val before = ic.getTextBeforeCursor(2, 0)?.toString().orEmpty()
+                    val ch = if (before.length == 2 && Character.isLowSurrogate(before[1])) before else before.takeLast(1)
+                    rememberDeleted(ch)
+                    ic.deleteSurroundingText(ch.length.coerceAtLeast(1), 0)
+                }
             }
         }
         render(state)
@@ -1008,6 +1054,7 @@ class ZinnaImeService : InputMethodService() {
      * finish what it was composing.
      */
     private fun onCandidateSelected(candidate: MozcSession.Candidate) {
+        forgetDeleted()
         if (candidate.id < 0 && isComposing) learnConfirmed(candidate.text)
         cancelZenzai()
         candidateView?.expanded = false
@@ -1033,6 +1080,12 @@ class ZinnaImeService : InputMethodService() {
         val view = candidateView ?: return
         view.expanded = false
         val actions = mutableListOf<CandidateStripView.Action>()
+        if (deletedBuffer.isNotEmpty()) {
+            // いちばん左に「↶ 消した文字を戻す」
+            val preview = deletedBuffer.toString().replace("\n", " ")
+            val short = if (preview.length > 8) preview.take(8) + "…" else preview
+            actions += CandidateStripView.Action("↶「$short」を戻す", 0, "消した文字を戻す") { restoreDeleted() }
+        }
         if (clipboard.items().isNotEmpty()) {
             actions += CandidateStripView.Action("", R.drawable.ic_clipboard, CLIPBOARD_LABEL) { showClipboard() }
         }
@@ -1094,6 +1147,7 @@ class ZinnaImeService : InputMethodService() {
             override fun isPrivate(): Boolean = session.incognito
             override fun phrases(): List<String> = settings.phrases
             override fun onPanelText(text: String) {
+                forgetDeleted()
                 if (isComposing) render(session.submit())
                 currentInputConnection?.commitText(text, 1)
             }
