@@ -229,6 +229,7 @@ class ZinnaImeService : InputMethodService() {
         val candidates = CandidateStripView(this).apply {
             theme = this@ZinnaImeService.theme
             listener = CandidateStripView.OnCandidateSelectedListener(::onCandidateSelected)
+            longPressListener = ::hideCandidate
             twoLines = settings.candidateTwoLines
             // Expanding covers the keyboard rather than squeezing it: a two-row keyboard is not
             // usable, and there is nothing to type while reading the list anyway.
@@ -266,6 +267,8 @@ class ZinnaImeService : InputMethodService() {
             glass = settings.liquidGlass
             minimal = settings.minimalKeys
             pressShape = settings.pressShape
+            haptics.mode = settings.vibrationMode
+            haptics.strength = settings.vibrationStrength
             pressColor = settings.pressColor
             memento = settings.mementoKeys
             mementoStyle = settings.mementoStyle
@@ -340,6 +343,7 @@ class ZinnaImeService : InputMethodService() {
         candidateWeight = settings.customCandWeight,
         candidateLabelSizeSp = t.labelSizeSp * settings.customCandScale,
         candidateFill = settings.customCandBg,
+        hapticFeedback = t.hapticFeedback && settings.vibrationMode != 0,
     )
 
     override fun onStartInputView(info: EditorInfo?, restarting: Boolean) {
@@ -890,7 +894,9 @@ class ZinnaImeService : InputMethodService() {
             showIdleActions()
         } else {
             stripContent = StripContent.CANDIDATES
-            candidateView?.setCandidates(zenzaiBaseCandidates(state), state.focusedCandidateIndex)
+            val shown = decorate(zenzaiBaseCandidates(state), state)
+            val focusedText = state.candidates.getOrNull(state.focusedCandidateIndex)?.text
+            candidateView?.setCandidates(shown, if (focusedText == null) -1 else shown.indexOfFirst { it.text == focusedText })
         }
         requestZenzai(state)
     }
@@ -917,12 +923,42 @@ class ZinnaImeService : InputMethodService() {
             if (lastState !== state || !isComposing) return@request
             zenzaiCandidate = candidate
             if (stripContent == StripContent.CLIPBOARD) return@request
-            val candidates = ZenzaiConversion.candidates(base, candidate)
+            val candidates = decorate(ZenzaiConversion.candidates(base, candidate), state)
             stripContent = StripContent.CANDIDATES
             // AIの候補には色を付けない（後から出てくるので目立ちすぎる）。
             // 変換キーで候補を選んでいる最中なら、その候補の色だけそのまま残す。
             val focusedText = base.getOrNull(state.focusedCandidateIndex)?.text
             candidateView?.setCandidates(candidates, candidates.indexOfFirst { it.text == focusedText && focusedText != null })
+        }
+    }
+
+    /**
+     * 候補の並びに手を加える：
+     *  ・日付・時刻（「きょう」→ 2026/11/17 など）と計算（「12*3=」→ 36）を足す
+     *  ・長押しで「出さない」にした候補を取り除く
+     */
+    private fun decorate(list: List<MozcSession.Candidate>, state: MozcSession.State): List<MozcSession.Candidate> {
+        val hidden = settings.hiddenCandidates
+        var out = list
+        if (settings.smartCandidates) {
+            val calc = SmartCandidates.calculate(state.preedit).mapIndexed { i, t -> MozcSession.Candidate(-2000 - i, t) }
+            val dates = SmartCandidates.dateTime(state.preeditReading).mapIndexed { i, t -> MozcSession.Candidate(-3000 - i, t) }
+            // 計算はいちばん前、日付は1つめの候補（今日 など）のすぐ後ろ
+            out = calc + out.take(1) + dates + out.drop(1)
+            out = out.distinctBy { it.text }
+        }
+        return if (hidden.isEmpty()) out else out.filter { it.text !in hidden }
+    }
+
+    /** 候補を長押し：その候補を今後出さない（設定の「カスタマイズ」で戻せる）。 */
+    private fun hideCandidate(candidate: MozcSession.Candidate) {
+        settings.hiddenCandidates = settings.hiddenCandidates + candidate.text
+        Toast.makeText(this, "「${candidate.text}」を候補に出さないようにしました（設定で戻せます）", Toast.LENGTH_SHORT).show()
+        lastState?.let { state ->
+            if (state.candidates.isNotEmpty()) {
+                val shown = decorate(zenzaiBaseCandidates(state), state)
+                candidateView?.setCandidates(shown, -1)
+            }
         }
     }
 
@@ -1150,6 +1186,17 @@ class ZinnaImeService : InputMethodService() {
             listOf(
                 KeyboardMenuView.Item({ "◀" }) { handleCursorMove(-1) },
                 KeyboardMenuView.Item({ "▶" }) { handleCursorMove(1) },
+                KeyboardMenuView.Item({ "単語登録" }) {
+                    // 選んでいる文字を「単語」に入れた状態で、単語登録の画面を開く
+                    if (isComposing) render(session.submit())
+                    val selected = currentInputConnection?.getSelectedText(0)?.toString().orEmpty()
+                    closeKeyboardMenu()
+                    startActivity(
+                        Intent(this, UserDictionaryActivity::class.java)
+                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            .putExtra(UserDictionaryActivity.EXTRA_WORD, selected.take(100))
+                    )
+                },
                 KeyboardMenuView.Item({ "⌨ 戻る" }) { closeKeyboardMenu() },
             ),
         ))

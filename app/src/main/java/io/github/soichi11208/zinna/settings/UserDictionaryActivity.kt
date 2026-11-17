@@ -49,17 +49,23 @@ import io.github.soichi11208.zinna.theme.ZinnaTheme
 class UserDictionaryActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent { ZinnaTheme { UserDictionaryScreen() } }
+        // キーボードの「編集 → 単語登録」から来たときは、選んでいた文字が入っている
+        val prefill = intent?.getStringExtra(EXTRA_WORD)
+        setContent { ZinnaTheme { UserDictionaryScreen(prefill) } }
+    }
+
+    companion object {
+        const val EXTRA_WORD = "word"
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun UserDictionaryScreen() {
+private fun UserDictionaryScreen(prefill: String? = null) {
     val context = LocalContext.current
     val dictionary = remember { UserDictionary(context) }
     var entries by remember { mutableStateOf(dictionary.entries()) }
-    var editing by remember { mutableStateOf<EditTarget?>(null) }
+    var editing by remember { mutableStateOf(if (prefill != null) EditTarget(null, prefill) else null) }
 
     Scaffold(
         topBar = { TopAppBar(title = { Text("ユーザー辞書") }) },
@@ -95,6 +101,7 @@ private fun UserDictionaryScreen() {
     editing?.let { target ->
         EntryDialog(
             initial = target.entry,
+            prefillWord = target.prefillWord,
             onDismiss = { editing = null },
             onSave = { updated ->
                 entries = dictionary.save(updated, replacing = target.entry)
@@ -111,7 +118,7 @@ private fun UserDictionaryScreen() {
 }
 
 /** null [entry] means "adding", otherwise the row being edited. */
-private data class EditTarget(val entry: UserDictionary.Entry?)
+private data class EditTarget(val entry: UserDictionary.Entry?, val prefillWord: String = "")
 
 @Composable
 private fun EntryRow(entry: UserDictionary.Entry, onClick: () -> Unit) {
@@ -133,12 +140,13 @@ private fun EntryRow(entry: UserDictionary.Entry, onClick: () -> Unit) {
 @Composable
 private fun EntryDialog(
     initial: UserDictionary.Entry?,
+    prefillWord: String = "",
     onDismiss: () -> Unit,
     onSave: (UserDictionary.Entry) -> Unit,
     onDelete: (() -> Unit)?,
 ) {
     var reading by remember { mutableStateOf(initial?.reading.orEmpty()) }
-    var word by remember { mutableStateOf(initial?.word.orEmpty()) }
+    var word by remember { mutableStateOf(initial?.word ?: prefillWord) }
     var pos by remember { mutableStateOf(initial?.pos ?: UserDictionary.DEFAULT_POS) }
     var comment by remember { mutableStateOf(initial?.comment.orEmpty()) }
     var posMenuOpen by remember { mutableStateOf(false) }

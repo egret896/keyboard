@@ -85,6 +85,9 @@ class CandidateStripView(context: Context) : FrameLayout(context) {
 
     var listener: OnCandidateSelectedListener? = null
 
+    /** 候補を長押ししたとき（その候補を出さないようにする）。 */
+    var longPressListener: ((MozcSession.Candidate) -> Unit)? = null
+
     var theme: KeyboardTheme = KeyboardTheme.Default
         set(value) {
             field = value
@@ -454,6 +457,12 @@ class CandidateStripView(context: Context) : FrameLayout(context) {
                 is MozcSession.Candidate -> listener?.onCandidateSelected(tag)
                 is Action -> tag.onSelected()
             }
+        }
+        setOnLongClickListener { held ->
+            val tag = held.tag as? MozcSession.Candidate ?: return@setOnLongClickListener false
+            held.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+            longPressListener?.invoke(tag)
+            true
         }
     }
 

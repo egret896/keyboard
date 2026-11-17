@@ -201,6 +201,26 @@ class ImeSettings(context: Context) {
     var customCandScale: Float get() = scale("c_cand_scale"); set(v) = setScale("c_cand_scale", v)
     var customCandBg: Int get() = int("c_cand_bg"); set(v) = setInt("c_cand_bg", v)
 
+    /** 振動：0 オフ、1 軽い、2 カチッ、3 押し込み。 */
+    var vibrationMode: Int
+        get() = prefs.getInt("vibration_mode", 2)
+        set(v) { prefs.edit().putInt("vibration_mode", v).apply(); bumpRevision() }
+
+    /** 振動の強さ 0.1〜1。 */
+    var vibrationStrength: Float
+        get() = prefs.getFloat("vibration_strength", 0.6f)
+        set(v) { prefs.edit().putFloat("vibration_strength", v).apply(); bumpRevision() }
+
+    /** 出さないようにした候補（長押しで追加、設定で戻せる）。 */
+    var hiddenCandidates: Set<String>
+        get() = prefs.getStringSet("hidden_candidates", emptySet())?.toSet() ?: emptySet()
+        set(v) { prefs.edit().putStringSet("hidden_candidates", v.toSet()).apply(); bumpRevision() }
+
+    /** 日付・時刻（きょう・いま など）と計算（12*3= など）の候補を出すか。 */
+    var smartCandidates: Boolean
+        get() = prefs.getBoolean("smart_candidates", true)
+        set(v) { prefs.edit().putBoolean("smart_candidates", v).apply(); bumpRevision() }
+
     /** カスタマイズを全部もとに戻す。 */
     fun resetCustom() {
         prefs.edit().apply {

@@ -107,6 +107,7 @@ private fun SettingsScreen(modifier: Modifier = Modifier) {
             }
         }
         if (tab == 1) {
+            FeelCard()
             CustomizeCard()
             TestInputField()
             return@Column
@@ -1063,6 +1064,64 @@ private fun SolidColorPicker(selected: Int, onPick: (Int) -> Unit) {
                     .clickable { onPick(c) },
             ) {
                 if (c == 0) Text("標準", style = MaterialTheme.typography.labelSmall)
+            }
+        }
+    }
+}
+
+
+/** 振動・便利な候補・出さないようにした候補。 */
+@Composable
+private fun FeelCard() {
+    val context = LocalContext.current
+    val settings = remember { ImeSettings(context) }
+    var mode by remember { mutableStateOf(settings.vibrationMode) }
+    var strength by remember { mutableStateOf(settings.vibrationStrength) }
+    var smart by remember { mutableStateOf(settings.smartCandidates) }
+    var hidden by remember { mutableStateOf(settings.hiddenCandidates.sorted()) }
+
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("振動", style = MaterialTheme.typography.titleMedium)
+            Text(
+                "押し込み＝押したとき軽く沈み、離したときカチッと戻る感じ。スマホの振動は1か所なので、押した場所だけを震わせることはできません",
+                style = MaterialTheme.typography.bodySmall,
+            )
+            ChoiceRow(listOf("オフ" to 0, "軽い" to 1, "カチッ" to 2, "押し込み" to 3), mode) {
+                mode = it; settings.vibrationMode = it
+                // 選んだらすぐ試せるように、1回鳴らす
+                io.github.soichi11208.zinna.keyboard.Haptics(context).apply { this.mode = it; this.strength = strength }.also { h -> h.down(); h.up() }
+            }
+            if (mode != 0) {
+                GlassSlider("強さ", "弱い", "強い", strength, 0.1f..1f, { strength = it }) {
+                    settings.vibrationStrength = strength
+                    io.github.soichi11208.zinna.keyboard.Haptics(context).apply { this.mode = mode; this.strength = strength }.also { h -> h.down(); h.up() }
+                }
+            }
+
+            HorizontalDivider()
+
+            SettingSwitch(
+                title = "日付・時刻と計算の候補",
+                body = "「きょう」で 2026/11/17、「いま」で 10:25、「12*3=」で 36 のように候補に出します",
+                checked = smart,
+            ) { smart = it; settings.smartCandidates = it }
+
+            HorizontalDivider()
+
+            Text("出さないようにした候補", style = MaterialTheme.typography.titleMedium)
+            Text("候補を長押しすると、ここに入ります。「戻す」でまた出るようになります", style = MaterialTheme.typography.bodySmall)
+            if (hidden.isEmpty()) {
+                Text("（なし）", style = MaterialTheme.typography.bodySmall)
+            }
+            for (word in hidden) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(word, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
+                    TextButton(onClick = {
+                        settings.hiddenCandidates = settings.hiddenCandidates - word
+                        hidden = settings.hiddenCandidates.sorted()
+                    }) { Text("戻す") }
+                }
             }
         }
     }

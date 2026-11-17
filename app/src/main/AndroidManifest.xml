@@ -2,7 +2,12 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <!--
-      No uses-permission elements at all, and that is the point: conversion runs entirely inside
+      振動（キーを押したときのバイブ）の強さを自分で決めるためだけに使う。通信とは関係ない。
+    -->
+    <uses-permission android:name="android.permission.VIBRATE" />
+
+    <!--
+      No network permission at all, and that is the point: conversion runs entirely inside
       libmozc.so against the bundled mozc.data, so the app has no way to reach the network even if
       a future dependency tried to. Any PR that adds android.permission.INTERNET is changing the
       product, not just the manifest.

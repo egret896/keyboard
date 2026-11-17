@@ -199,7 +199,6 @@ class FlickKeyboardView @JvmOverloads constructor(
             if (gaugeProgress() >= 1f) {
                 gaugeKey = null
                 gaugeDone = true // 指を離すまで、もう一度ためない（押し続けてもアニメが繰り返さない）
-                performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
                 clearAllListener?.invoke()
                 playClearWave()
                 invalidate()
@@ -412,7 +411,7 @@ class FlickKeyboardView @JvmOverloads constructor(
             drawKey(canvas, placed, radius)
             if (bump > 0f) {
                 wavePaint.alpha = (bump * 60).toInt()
-                canvas.drawRoundRect(placed.bounds, radius, radius, wavePaint)
+                drawGlow(canvas, placed, radius)
                 canvas.restore()
             }
         }
@@ -445,6 +444,40 @@ class FlickKeyboardView @JvmOverloads constructor(
     fun playClearWave() {
         waveStartedAt = SystemClock.uptimeMillis()
         postInvalidateOnAnimation()
+        // 光が右から左へ流れるのに合わせて、コツコツコツと振動も流す
+        val columns = placedKeys.map { it.bounds.centerX().toInt() / 8 }.distinct().size.coerceIn(3, 10)
+        haptics.wave(columns, (WAVE_MS * 0.45f / columns).toLong(), (WAVE_MS * 0.275f).toLong())
+    }
+
+    /**
+     * 全消しのときにキーを光らせる。光の形はキーの見た目に合わせる。
+     *   リキッドグラス＝錠剤の形、MEMENTO MORI＝傾いた札、ふつう・ミニマリスト＝「押したときの形」
+     */
+    private fun drawGlow(canvas: Canvas, placed: PlacedKey, radius: Float) {
+        val b = placed.bounds
+        when {
+            memento && !glass -> {
+                val d = resources.displayMetrics.density
+                canvas.save()
+                canvas.translate(b.centerX(), b.centerY())
+                canvas.rotate(mmTilt(placed))
+                mmCard(b.width() - 6f * d, b.height() - 8f * d)
+                canvas.drawPath(mmPath, wavePaint)
+                canvas.restore()
+            }
+            glass -> {
+                val r = kotlin.math.min(b.width(), b.height()) / 2f
+                canvas.drawRoundRect(b, r, r, wavePaint)
+            }
+            else -> {
+                val r = when (pressShape) {
+                    1 -> 0f
+                    2 -> kotlin.math.min(b.width(), b.height()) / 2f
+                    else -> radius
+                }
+                canvas.drawRoundRect(b, r, r, wavePaint)
+            }
+        }
     }
 
     /** 波の進み具合 0〜1。波が出ていなければ -1。 */
@@ -645,6 +678,9 @@ class FlickKeyboardView @JvmOverloads constructor(
         canvas.drawText(output.label, 0f, -(mmLabel.descent() + mmLabel.ascent()) / 2f, mmLabel)
         canvas.restore()
     }
+
+    /** キーの振動（強さ・感じは設定で決める）。 */
+    val haptics = Haptics(context)
 
     /** 押したときの形。0＝テーマの角丸、1＝四角、2＝丸（まるい端）。ふつう・ミニマリストで使う。 */
     var pressShape: Int = 0
@@ -1283,7 +1319,7 @@ class FlickKeyboardView @JvmOverloads constructor(
         gaugeDone = false
         val touch = Touch(key, x, y)
         activeTouches[pointerId] = touch
-        if (theme.hapticFeedback) performHapticFeedback(android.view.HapticFeedbackConstants.KEYBOARD_TAP)
+        haptics.down()
 
         popupTouch = null
         if (key.spec.longPress != null || !key.spec.popup.isNullOrEmpty()) {
@@ -1338,6 +1374,7 @@ class FlickKeyboardView @JvmOverloads constructor(
 
     private fun onPointerUp(pointerId: Int, x: Float, y: Float) {
         val touch = activeTouches[pointerId] ?: return
+        haptics.up()
         pressFades[touch.key] = SystemClock.uptimeMillis()
         // 速いフリックは、指を離す直前の動きが届かないことがある。離した位置でも方向を決め直す
         if (popupTouch === touch) {
