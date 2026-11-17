@@ -1080,16 +1080,11 @@ class ZinnaImeService : InputMethodService() {
         val view = candidateView ?: return
         view.expanded = false
         val actions = mutableListOf<CandidateStripView.Action>()
-        if (deletedBuffer.isNotEmpty()) {
-            // いちばん左に「↶ 消した文字を戻す」
-            val preview = deletedBuffer.toString().replace("\n", " ")
-            val short = if (preview.length > 8) preview.take(8) + "…" else preview
-            actions += CandidateStripView.Action("↶「$short」を戻す", 0, "消した文字を戻す") { restoreDeleted() }
-        }
         if (clipboard.items().isNotEmpty()) {
             actions += CandidateStripView.Action("", R.drawable.ic_clipboard, CLIPBOARD_LABEL) { showClipboard() }
         }
-        actions += CandidateStripView.Action("", R.drawable.ic_undo, UNDO_LABEL) { render(session.undo()) }
+        // ↶ ＝ ⌫ で消した文字（全消しも）を戻す。変換をひらがなに戻す機能はやめた
+        actions += CandidateStripView.Action("", R.drawable.ic_undo, "消した文字を戻す") { restoreDeleted() }
         actions += CandidateStripView.Action("", R.drawable.ic_one_hand, ONE_HAND_LABEL) {
             setOneHand(if (settings.oneHandMode == 0) settings.oneHandLastSide else 0)
         }
