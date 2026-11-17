@@ -74,8 +74,145 @@ class SettingsActivity : ComponentActivity() {
     }
 }
 
+/** 設定のページ。トップ画面に並べ、押すとそのページを開く。 */
+private enum class Page(val icon: String, val title: String, val summary: String) {
+    LOOK("🎨", "見た目", "キーのデザイン・背景・文字の色やフォント"),
+    INPUT("⌨", "入力", "フリック／QWERTY・高さ・感度・空白・左右分割"),
+    TOUCH("✋", "操作と振動", "振動・⌫で全削除"),
+    CONVERT("💡", "変換と候補", "AI変換・予測変換の欄・便利な候補・出さない候補"),
+    WORDS("📖", "単語と定型文", "ユーザー辞書・定型文"),
+    PRIVACY("🔒", "プライバシーとバックアップ", "プライベートモード・書き出し／読み込み"),
+    INFO("ℹ", "情報", "変換エンジン・辞書・配列"),
+}
+
 @Composable
 private fun SettingsScreen(modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    var page by remember { mutableStateOf<Page?>(null) }
+    // ページを開いているときは、戻る操作でトップへ
+    androidx.activity.compose.BackHandler(enabled = page != null) { page = null }
+
+    Column(modifier.fillMaxSize()) {
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .verticalScroll(rememberScrollState())
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            val current = page
+            if (current == null) {
+                Text("KKKeyboard", style = MaterialTheme.typography.headlineMedium)
+                SetupCard()
+                for (p in Page.values()) PageRow(p) { page = p }
+            } else {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    TextButton(onClick = { page = null }) { Text("← 戻る") }
+                    Text("${current.icon} ${current.title}", style = MaterialTheme.typography.titleLarge)
+                }
+                when (current) {
+                    Page.LOOK -> {
+                        KeyLookCard()
+                        AppearanceCard()
+                        CustomizeCard(keyboardPart = true)
+                    }
+                    Page.INPUT -> {
+                        KeyboardCard()
+                        InputFeelCard()
+                    }
+                    Page.TOUCH -> {
+                        VibrationCard()
+                        ClearAllCard()
+                    }
+                    Page.CONVERT -> {
+                        ZenzaiCard()
+                        CandidateCard()
+                        CustomizeCard(keyboardPart = false)
+                        HiddenCandidatesCard()
+                    }
+                    Page.WORDS -> {
+                        UserDictionaryCard()
+                        PhrasesCard()
+                    }
+                    Page.PRIVACY -> {
+                        PrivacyCard()
+                        BackupCard()
+                    }
+                    Page.INFO -> InfoPage()
+                }
+            }
+        }
+        // どのページでも下に「試し入力」を置き、変えた設定をすぐ試せるようにする
+        if (page != null && page != Page.INFO && page != Page.PRIVACY) {
+            HorizontalDivider()
+            TestInputField(compact = true)
+        }
+    }
+}
+
+/** トップ画面の1行（アイコン・名前・中身の説明・›）。 */
+@Composable
+private fun PageRow(page: Page, onClick: () -> Unit) {
+    Card(modifier = Modifier.fillMaxWidth(), onClick = onClick) {
+        Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(page.icon, style = MaterialTheme.typography.headlineSmall)
+            Column(Modifier.weight(1f).padding(horizontal = 16.dp)) {
+                Text(page.title, style = MaterialTheme.typography.titleMedium)
+                Text(page.summary, style = MaterialTheme.typography.bodySmall)
+            }
+            Text("›", style = MaterialTheme.typography.headlineSmall)
+        }
+    }
+}
+
+/** キーボードがまだ使える状態でないときだけ、有効化・選択のボタンを出す。 */
+@Composable
+private fun SetupCard() {
+    val context = LocalContext.current
+    val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+    var enabled by remember { mutableStateOf(true) }
+    // 設定アプリから戻ってきたときにも見直す
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        while (true) {
+            enabled = imm.enabledInputMethodList.any { it.packageName == context.packageName }
+            kotlinx.coroutines.delay(1000)
+        }
+    }
+    if (enabled) {
+        OutlinedButton(onClick = { imm.showInputMethodPicker() }, modifier = Modifier.fillMaxWidth()) {
+            Text("キーボードを切り替える")
+        }
+        return
+    }
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("はじめに：キーボードを有効にしてください", style = MaterialTheme.typography.titleMedium)
+            Button(
+                onClick = {
+                    context.startActivity(Intent(Settings.ACTION_INPUT_METHOD_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                },
+                modifier = Modifier.fillMaxWidth(),
+            ) { Text("① キーボードを有効化") }
+            Button(onClick = { imm.showInputMethodPicker() }, modifier = Modifier.fillMaxWidth()) {
+                Text("② キーボードを選択")
+            }
+        }
+    }
+}
+
+/** タイトルつきのカード。 */
+@Composable
+private fun SectionCard(title: String, content: @Composable () -> Unit) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(title, style = MaterialTheme.typography.titleMedium)
+            content()
+        }
+    }
+}
+
+@Composable
+private fun InfoPage() {
     val context = LocalContext.current
     val repository = remember { LayoutRepository(context) }
     var engineStatus by remember { mutableStateOf(describeEngine(context)) }
@@ -87,83 +224,17 @@ private fun SettingsScreen(modifier: Modifier = Modifier) {
         prefs.registerOnSharedPreferenceChangeListener(listener)
         onDispose { prefs.unregisterOnSharedPreferenceChangeListener(listener) }
     }
-    val layouts = remember { repository.availableLayoutIds() }
-    val themes = remember { repository.availableThemeIds() }
-
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        Text("KKKeyboard", style = MaterialTheme.typography.headlineMedium)
-
-        // 上のタブ：「基本」＝今までの設定、「カスタマイズ」＝文字色・フォントなど
-        var tab by remember { mutableStateOf(0) }
-        androidx.compose.material3.TabRow(selectedTabIndex = tab) {
-            for ((i, name) in listOf("基本", "カスタマイズ").withIndex()) {
-                androidx.compose.material3.Tab(selected = tab == i, onClick = { tab = i }, text = { Text(name) })
-            }
-        }
-        if (tab == 1) {
-            FeelCard()
-            CustomizeCard()
-            TestInputField()
-            return@Column
-        }
-
-        MyKeyboardCard()
-
-        InfoCard(title = "変換エンジン", body = engineStatus)
-        ZenzaiCard()
-        InfoCard(title = "追加辞書", body = describeDictionaries(context))
-        InfoCard(title = "配列", body = layouts.joinToString(", ").ifEmpty { "(なし)" })
-        InfoCard(title = "テーマ", body = themes.joinToString(", ").ifEmpty { "(なし)" })
-
-        UserDictionaryCard()
-
-        BackupCard()
-
-        KeyboardCard()
-
-        AppearanceCard()
-
-        TestInputField()
-
-        Button(
-            onClick = {
-                context.startActivity(
-                    Intent(Settings.ACTION_INPUT_METHOD_SETTINGS)
-                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                )
-            },
-            modifier = Modifier.fillMaxWidth(),
-        ) { Text("キーボードを有効化") }
-
-        Button(
-            onClick = {
-                val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
-                imm.showInputMethodPicker()
-            },
-            modifier = Modifier.fillMaxWidth(),
-        ) { Text("キーボードを選択") }
-    }
+    InfoCard(title = "変換エンジン", body = engineStatus)
+    InfoCard(title = "追加辞書", body = describeDictionaries(context))
+    InfoCard(title = "配列", body = remember { repository.availableLayoutIds() }.joinToString(", ").ifEmpty { "(なし)" })
+    InfoCard(title = "テーマ", body = remember { repository.availableThemeIds() }.joinToString(", ").ifEmpty { "(なし)" })
 }
 
-/** KKKeyboard で追加した設定：プライベートモード・Fold の左右分割・定型文。 */
+/** キーのデザイン（グラス・MEMENTO MORI・ミニマリスト・ふつう）と、押したときの形・色。 */
 @Composable
-private fun MyKeyboardCard() {
+private fun KeyLookCard() {
     val context = LocalContext.current
     val settings = remember { ImeSettings(context) }
-    var privateMode by remember { mutableStateOf(settings.privateMode) }
-    var split by remember { mutableStateOf(settings.splitWhenWide) }
-    var phrases by remember { mutableStateOf(settings.phrasesText) }
-    var threshold by remember { mutableStateOf(settings.flickThresholdDp) }
-    var toggleInput by remember { mutableStateOf(settings.toggleInput) }
-    var holdToClear by remember { mutableStateOf(settings.holdToClear) }
-    var charge by remember { mutableStateOf(settings.clearChargeMs.toFloat()) }
-    var twoLines by remember { mutableStateOf(settings.candidateTwoLines) }
     var pressShape by remember { mutableStateOf(settings.pressShape) }
     var pressColor by remember { mutableStateOf(settings.pressColor) }
     var look by remember { mutableStateOf(settings.keyLook) }
@@ -172,183 +243,205 @@ private fun MyKeyboardCard() {
     var frost by remember { mutableStateOf(settings.glassFrost) }
     var glassLight by remember { mutableStateOf(settings.glassLight) }
     var glassShadow by remember { mutableStateOf(settings.glassShadow) }
-    var popup by remember { mutableStateOf(settings.flickGuideStyle != FlickGuideStyle.NONE) }
 
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("KKKeyboard の設定", style = MaterialTheme.typography.titleMedium)
-
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text("プライベートモード", style = MaterialTheme.typography.bodyLarge)
-                    Text(
-                        "ONの間は入力を学習せず、記号や絵文字の履歴も残しません。キーボード上部の「🔓 プライベート」でも切り替えられます",
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-                }
-                Switch(checked = privateMode, onCheckedChange = {
-                    privateMode = it
-                    settings.privateMode = it
-                })
+    SectionCard("キーのデザイン") {
+        for ((option, label) in listOf(
+            ImeSettings.LOOK_GLASS to "リキッドグラス（厚いガラス。背景画像がゆがんで見える）",
+            ImeSettings.LOOK_MEMENTO to "MEMENTO MORI A：海の青（青い札）",
+            ImeSettings.LOOK_MEMENTO_MOON to "MEMENTO MORI B：満月（夜の黒と月の金）",
+            ImeSettings.LOOK_MEMENTO_BOLD to "MEMENTO MORI C：大胆（白い札・大きく傾く）",
+            ImeSettings.LOOK_MEMENTO_LINE to "MEMENTO MORI D：線だけ（札なし・下線と印）",
+            ImeSettings.LOOK_MINIMAL to "ミニマリスト（キーの間に細い線だけ）",
+            ImeSettings.LOOK_FLAT to "ふつう（平らなキー）",
+        )) {
+            val onSelect = { look = option; settings.keyLook = option }
+            if (look == option) {
+                Button(onClick = onSelect, modifier = Modifier.fillMaxWidth()) { Text(label) }
+            } else {
+                OutlinedButton(onClick = onSelect, modifier = Modifier.fillMaxWidth()) { Text(label) }
             }
-
-            HorizontalDivider()
-
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text("Foldを開いたら左右分割", style = MaterialTheme.typography.bodyLarge)
-                    Text(
-                        "画面が広いときは、左右に「あかさ…」を分けて両手の親指で打てる配置にします",
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-                }
-                Switch(checked = split, onCheckedChange = {
-                    split = it
-                    settings.splitWhenWide = it
-                })
-            }
-
-            HorizontalDivider()
-
-            Text("キーの見た目", style = MaterialTheme.typography.bodyLarge)
-            for ((option, label) in listOf(
-                ImeSettings.LOOK_GLASS to "リキッドグラス（厚いガラス。背景画像がゆがんで見える）",
-                ImeSettings.LOOK_MEMENTO to "MEMENTO MORI A：海の青（青い札）",
-                ImeSettings.LOOK_MEMENTO_MOON to "MEMENTO MORI B：満月（夜の黒と月の金）",
-                ImeSettings.LOOK_MEMENTO_BOLD to "MEMENTO MORI C：大胆（白い札・大きく傾く）",
-                ImeSettings.LOOK_MEMENTO_LINE to "MEMENTO MORI D：線だけ（札なし・下線と印）",
-                ImeSettings.LOOK_MINIMAL to "ミニマリスト（キーの間に細い線だけ）",
-                ImeSettings.LOOK_FLAT to "ふつう（平らなキー）",
-            )) {
-                val onSelect = { look = option; settings.keyLook = option }
-                if (look == option) {
-                    Button(onClick = onSelect, modifier = Modifier.fillMaxWidth()) { Text(label) }
-                } else {
-                    OutlinedButton(onClick = onSelect, modifier = Modifier.fillMaxWidth()) { Text(label) }
-                }
-            }
-
-            if (look == ImeSettings.LOOK_FLAT || look == ImeSettings.LOOK_MINIMAL) {
-                Text("押したときの形", style = MaterialTheme.typography.bodyMedium)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    for ((value, label) in listOf(0 to "角丸", 1 to "四角", 2 to "丸")) {
-                        val pick = { pressShape = value; settings.pressShape = value }
-                        if (pressShape == value) Button(onClick = pick) { Text(label) }
-                        else OutlinedButton(onClick = pick) { Text(label) }
-                    }
-                }
-                Text("押したときの色", style = MaterialTheme.typography.bodyMedium)
-                PressColorPicker(pressColor) { pressColor = it; settings.pressColor = it }
-            }
-
-            if (glass) {
-                Text(
-                    "ガラスの調整（ゆがみは、背景画像を設定したときに見えます）",
-                    style = MaterialTheme.typography.bodySmall,
-                )
-                GlassSlider("ゆがみ", "なし", "強い", refract, 0f..2f, { refract = it }) { settings.glassRefract = refract }
-                GlassSlider("くもり", "透明", "すりガラス", frost, 0f..1f, { frost = it }) { settings.glassFrost = frost }
-                GlassSlider("縁の光", "弱い", "強い", glassLight, 0f..2f, { glassLight = it }) { settings.glassLight = glassLight }
-                GlassSlider("影", "なし", "濃い", glassShadow, 0f..2f, { glassShadow = it }) { settings.glassShadow = glassShadow }
-                TextButton(onClick = {
-                    refract = 1f; frost = 0.2f; glassLight = 1f; glassShadow = 1f
-                    settings.glassRefract = 1f; settings.glassFrost = 0.2f; settings.glassLight = 1f; settings.glassShadow = 1f
-                }) { Text("ガラスの調整を最初に戻す") }
-            }
-
-            HorizontalDivider()
-
-            SettingSwitch(
-                title = "キーを押したときのポップアップ",
-                body = "キーを押している間、入る文字を吹き出しで出します。☺記キー長押しのメニューでも切り替えられます",
-                checked = popup,
-            ) {
-                popup = it
-                settings.flickGuideStyle = if (it) FlickGuideStyle.PREVIEW else FlickGuideStyle.NONE
-            }
-
-            HorizontalDivider()
-
-            Text("フリック感度", style = MaterialTheme.typography.bodyLarge)
-            Text(
-                "左ほど少し指をずらしただけでフリックになります（敏感）。右ほど大きく動かさないとフリックになりません（鈍感）",
-                style = MaterialTheme.typography.bodySmall,
-            )
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("敏感", style = MaterialTheme.typography.bodySmall)
-                Slider(
-                    value = threshold,
-                    onValueChange = { threshold = it },
-                    onValueChangeFinished = { settings.flickThresholdDp = threshold },
-                    valueRange = ImeSettings.MIN_FLICK_THRESHOLD_DP..ImeSettings.MAX_FLICK_THRESHOLD_DP,
-                    modifier = Modifier.weight(1f).padding(horizontal = 8.dp),
-                )
-                Text("鈍感", style = MaterialTheme.typography.bodySmall)
-            }
-
-            HorizontalDivider()
-
-            SettingSwitch(
-                title = "連打入力（ケータイ入力）",
-                body = "ONにすると「あ」を続けて押すと あ→い→う… と変わります。同じ文字を続けて打つときは少し待つか ▶ を押します。フリックもそのまま使えます",
-                checked = toggleInput,
-            ) { toggleInput = it; settings.toggleInput = it }
-
-            HorizontalDivider()
-
-            SettingSwitch(
-                title = "⌫を左にずらして全削除",
-                body = "⌫を押したまま指を左にずらして止めると、赤いゲージがたまり、満タンでカーソルより左の文字を全部消します。普通の長押しは1文字ずつ連続で消します",
-                checked = holdToClear,
-            ) { holdToClear = it; settings.holdToClear = it }
-
-            if (holdToClear) {
-                Text(
-                    "全削除のチャージ時間：%.2f 秒".format(charge / 1000f),
-                    style = MaterialTheme.typography.bodySmall,
-                )
-                // 0.01秒きざみ（0.01〜3.00秒）。−／＋で0.01秒ずつ動かせる
-                val setCharge = { v: Float ->
-                    charge = (Math.round(v / 10f) * 10f).coerceIn(10f, 3000f)
-                    settings.clearChargeMs = charge.toLong()
-                }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    TextButton(onClick = { setCharge(charge - 10f) }) { Text("−") }
-                    Slider(
-                        value = charge,
-                        onValueChange = { charge = it },
-                        onValueChangeFinished = { setCharge(charge) },
-                        valueRange = 10f..3000f,
-                        modifier = Modifier.weight(1f).padding(horizontal = 4.dp),
-                    )
-                    TextButton(onClick = { setCharge(charge + 10f) }) { Text("＋") }
-                }
-            }
-
-            HorizontalDivider()
-
-            SettingSwitch(
-                title = "予測変換を2行で出す",
-                body = "OFFは1行（横にスクロール）。ONにすると候補バーが2行ぶんの高さになり、キーボード全体が少し高くなります",
-                checked = twoLines,
-            ) { twoLines = it; settings.candidateTwoLines = it }
-
-            HorizontalDivider()
-
-            Text("定型文", style = MaterialTheme.typography.bodyLarge)
-            Text(
-                "1行に1つ書きます。キーボードの「☺記」→「定型文」から入力できます",
-                style = MaterialTheme.typography.bodySmall,
-            )
-            OutlinedTextField(
-                value = phrases,
-                onValueChange = {
-                    phrases = it
-                    settings.phrasesText = it
-                },
-                modifier = Modifier.fillMaxWidth().heightIn(min = 140.dp),
-            )
         }
+
+        if (look == ImeSettings.LOOK_FLAT || look == ImeSettings.LOOK_MINIMAL) {
+            HorizontalDivider()
+            Text("押したときの形", style = MaterialTheme.typography.bodyMedium)
+            ChoiceRow(listOf("角丸" to 0, "四角" to 1, "丸" to 2), pressShape) { pressShape = it; settings.pressShape = it }
+            Text("押したときの色", style = MaterialTheme.typography.bodyMedium)
+            PressColorPicker(pressColor) { pressColor = it; settings.pressColor = it }
+        }
+
+        if (glass) {
+            HorizontalDivider()
+            Text(
+                "ガラスの調整（ゆがみは、背景画像を設定したときに見えます）",
+                style = MaterialTheme.typography.bodySmall,
+            )
+            GlassSlider("ゆがみ", "なし", "強い", refract, 0f..2f, { refract = it }) { settings.glassRefract = refract }
+            GlassSlider("くもり", "透明", "すりガラス", frost, 0f..1f, { frost = it }) { settings.glassFrost = frost }
+            GlassSlider("縁の光", "弱い", "強い", glassLight, 0f..2f, { glassLight = it }) { settings.glassLight = glassLight }
+            GlassSlider("影", "なし", "濃い", glassShadow, 0f..2f, { glassShadow = it }) { settings.glassShadow = glassShadow }
+            TextButton(onClick = {
+                refract = 1f; frost = 0.2f; glassLight = 1f; glassShadow = 1f
+                settings.glassRefract = 1f; settings.glassFrost = 0.2f; settings.glassLight = 1f; settings.glassShadow = 1f
+            }) { Text("ガラスの調整を最初に戻す") }
+        }
+    }
+}
+
+/** 打ち心地：感度・ポップアップ・連打・空白・左右分割。 */
+@Composable
+private fun InputFeelCard() {
+    val context = LocalContext.current
+    val settings = remember { ImeSettings(context) }
+    var split by remember { mutableStateOf(settings.splitWhenWide) }
+    var threshold by remember { mutableStateOf(settings.flickThresholdDp) }
+    var toggleInput by remember { mutableStateOf(settings.toggleInput) }
+    var halfSpace by remember { mutableStateOf(settings.alwaysHalfSpace) }
+
+    SectionCard("打ち心地") {
+        Text("フリック感度", style = MaterialTheme.typography.bodyLarge)
+        Text(
+            "左ほど少し指をずらしただけでフリックになります（敏感）。右ほど大きく動かさないとフリックになりません（鈍感）",
+            style = MaterialTheme.typography.bodySmall,
+        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("敏感", style = MaterialTheme.typography.bodySmall)
+            Slider(
+                value = threshold,
+                onValueChange = { threshold = it },
+                onValueChangeFinished = { settings.flickThresholdDp = threshold },
+                valueRange = ImeSettings.MIN_FLICK_THRESHOLD_DP..ImeSettings.MAX_FLICK_THRESHOLD_DP,
+                modifier = Modifier.weight(1f).padding(horizontal = 8.dp),
+            )
+            Text("鈍感", style = MaterialTheme.typography.bodySmall)
+        }
+
+        HorizontalDivider()
+
+        SettingSwitch(
+            title = "空白は常に半角",
+            body = "OFFのときは、かなの画面で全角、英字・数字の画面で半角です。ONにするとどの画面でも半角になります",
+            checked = halfSpace,
+        ) { halfSpace = it; settings.alwaysHalfSpace = it }
+
+        HorizontalDivider()
+
+        SettingSwitch(
+            title = "連打入力（ケータイ入力）",
+            body = "ONにすると「あ」を続けて押すと あ→い→う… と変わります。フリックもそのまま使えます",
+            checked = toggleInput,
+        ) { toggleInput = it; settings.toggleInput = it }
+
+        HorizontalDivider()
+
+        SettingSwitch(
+            title = "Foldを開いたら左右分割",
+            body = "画面が広いときは、左右にキーを分けて両手の親指で打てる配置にします",
+            checked = split,
+        ) { split = it; settings.splitWhenWide = it }
+    }
+}
+
+/** ⌫ を左にずらして全削除と、そのチャージ時間。 */
+@Composable
+private fun ClearAllCard() {
+    val context = LocalContext.current
+    val settings = remember { ImeSettings(context) }
+    var holdToClear by remember { mutableStateOf(settings.holdToClear) }
+    var charge by remember { mutableStateOf(settings.clearChargeMs.toFloat()) }
+
+    SectionCard("全削除") {
+        SettingSwitch(
+            title = "⌫を左にずらして全削除",
+            body = "⌫を押したまま指を左にずらして止めると、ゲージがたまり、満タンでカーソルより左の文字を全部消します。消した文字は候補バーの ↶ で戻せます",
+            checked = holdToClear,
+        ) { holdToClear = it; settings.holdToClear = it }
+
+        if (holdToClear) {
+            Text(
+                "全削除のチャージ時間：%.2f 秒".format(charge / 1000f),
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            // 0.01秒きざみ（0.01〜3.00秒）。−／＋で0.01秒ずつ動かせる
+            val setCharge = { v: Float ->
+                charge = (Math.round(v / 10f) * 10f).coerceIn(10f, 3000f)
+                settings.clearChargeMs = charge.toLong()
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                TextButton(onClick = { setCharge(charge - 10f) }) { Text("−") }
+                Slider(
+                    value = charge,
+                    onValueChange = { charge = it },
+                    onValueChangeFinished = { setCharge(charge) },
+                    valueRange = 10f..3000f,
+                    modifier = Modifier.weight(1f).padding(horizontal = 4.dp),
+                )
+                TextButton(onClick = { setCharge(charge + 10f) }) { Text("＋") }
+            }
+        }
+    }
+}
+
+/** 予測変換の欄（1行／2行）と、日付・計算の候補。 */
+@Composable
+private fun CandidateCard() {
+    val context = LocalContext.current
+    val settings = remember { ImeSettings(context) }
+    var twoLines by remember { mutableStateOf(settings.candidateTwoLines) }
+    var smart by remember { mutableStateOf(settings.smartCandidates) }
+
+    SectionCard("予測変換") {
+        SettingSwitch(
+            title = "予測変換を2行で出す",
+            body = "OFFは1行（横にスクロール）。ONにすると候補バーが2行ぶんの高さになり、キーボード全体が少し高くなります",
+            checked = twoLines,
+        ) { twoLines = it; settings.candidateTwoLines = it }
+
+        HorizontalDivider()
+
+        SettingSwitch(
+            title = "日付・時刻と計算の候補",
+            body = "「きょう」で 2026/11/17、「いま」で 10:25、「12*3=」で 36 のように候補に出します",
+            checked = smart,
+        ) { smart = it; settings.smartCandidates = it }
+    }
+}
+
+/** 定型文。 */
+@Composable
+private fun PhrasesCard() {
+    val context = LocalContext.current
+    val settings = remember { ImeSettings(context) }
+    var phrases by remember { mutableStateOf(settings.phrasesText) }
+    SectionCard("定型文") {
+        Text(
+            "1行に1つ書きます。キーボードの ☺ →「定型文」から入力できます",
+            style = MaterialTheme.typography.bodySmall,
+        )
+        OutlinedTextField(
+            value = phrases,
+            onValueChange = { phrases = it; settings.phrasesText = it },
+            modifier = Modifier.fillMaxWidth().heightIn(min = 140.dp),
+        )
+    }
+}
+
+/** プライベートモード。 */
+@Composable
+private fun PrivacyCard() {
+    val context = LocalContext.current
+    val settings = remember { ImeSettings(context) }
+    var privateMode by remember { mutableStateOf(settings.privateMode) }
+    SectionCard("プライバシー") {
+        SettingSwitch(
+            title = "プライベートモード",
+            body = "ONの間は入力を学習せず、記号や絵文字の履歴も残しません。キーボード上部の「🔓 プライベート」でも切り替えられます",
+            checked = privateMode,
+        ) { privateMode = it; settings.privateMode = it }
+        Text(
+            "このアプリはインターネットに一切つながりません（通信の権限がありません）",
+            style = MaterialTheme.typography.bodySmall,
+        )
     }
 }
 
@@ -878,22 +971,19 @@ private fun AppearanceCard() {
  * has no action attached, which is exactly the case that is easy to get wrong.
  */
 @Composable
-private fun TestInputField() {
+private fun TestInputField(compact: Boolean = false) {
     var text by remember { mutableStateOf("") }
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("試し入力", style = MaterialTheme.typography.titleMedium)
-            OutlinedTextField(
-                value = text,
-                onValueChange = { text = it },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = 120.dp),
-                placeholder = { Text("ここで入力を試せます") },
-                singleLine = false,
-            )
-        }
-    }
+    // 画面の下にいつも出しておく、小さな試し入力欄
+    OutlinedTextField(
+        value = text,
+        onValueChange = { text = it },
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp)
+            .heightIn(min = if (compact) 56.dp else 120.dp, max = 160.dp),
+        placeholder = { Text("✎ ここで入力を試せます") },
+        singleLine = false,
+    )
 }
 
 @Composable
@@ -967,7 +1057,7 @@ private fun PressColorPicker(selected: Int, onPick: (Int) -> Unit) {
 
 /** 「カスタマイズ」タブ：キーボードと予測変換の欄の、文字色・フォント・太さ・大きさ・背景色。 */
 @Composable
-private fun CustomizeCard() {
+private fun CustomizeCard(keyboardPart: Boolean) {
     val context = LocalContext.current
     val settings = remember { ImeSettings(context) }
     var keyText by remember { mutableStateOf(settings.customKeyText) }
@@ -983,7 +1073,8 @@ private fun CustomizeCard() {
 
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("キーボード", style = MaterialTheme.typography.titleMedium)
+          if (keyboardPart) {
+            Text("キーの文字と背景の色", style = MaterialTheme.typography.titleMedium)
             Text("文字の色", style = MaterialTheme.typography.bodyMedium)
             SolidColorPicker(keyText) { keyText = it; settings.customKeyText = it }
             Text("フォント", style = MaterialTheme.typography.bodyMedium)
@@ -994,9 +1085,13 @@ private fun CustomizeCard() {
             Text("背景の色（背景画像を設定しているときは画像が優先）", style = MaterialTheme.typography.bodyMedium)
             SolidColorPicker(kbBg) { kbBg = it; settings.customKeyboardBg = it }
 
-            HorizontalDivider()
-
-            Text("予測変換の欄", style = MaterialTheme.typography.titleMedium)
+            TextButton(onClick = {
+                settings.customKeyText = 0; settings.customKeyFont = ""; settings.customKeyWeight = 0
+                settings.customKeyScale = 1f; settings.customKeyboardBg = 0
+                keyText = 0; keyFont = ""; keyWeight = 0; keyScale = 1f; kbBg = 0
+            }) { Text("キーの文字と色をもとに戻す") }
+          } else {
+            Text("予測変換の欄の文字と色", style = MaterialTheme.typography.titleMedium)
             Text("文字の色", style = MaterialTheme.typography.bodyMedium)
             SolidColorPicker(candText) { candText = it; settings.customCandText = it }
             Text("フォント", style = MaterialTheme.typography.bodyMedium)
@@ -1008,10 +1103,11 @@ private fun CustomizeCard() {
             SolidColorPicker(candBg) { candBg = it; settings.customCandBg = it }
 
             TextButton(onClick = {
-                settings.resetCustom()
-                keyText = 0; keyFont = ""; keyWeight = 0; keyScale = 1f; kbBg = 0
+                settings.customCandText = 0; settings.customCandFont = ""; settings.customCandWeight = 0
+                settings.customCandScale = 1f; settings.customCandBg = 0
                 candText = 0; candFont = ""; candWeight = 0; candScale = 1f; candBg = 0
-            }) { Text("カスタマイズを全部もとに戻す") }
+            }) { Text("予測変換の欄をもとに戻す") }
+          }
         }
     }
 }
@@ -1069,58 +1165,52 @@ private fun SolidColorPicker(selected: Int, onPick: (Int) -> Unit) {
 }
 
 
-/** 振動・便利な候補・出さないようにした候補。 */
+/** 振動。 */
 @Composable
-private fun FeelCard() {
+private fun VibrationCard() {
     val context = LocalContext.current
     val settings = remember { ImeSettings(context) }
     var mode by remember { mutableStateOf(settings.vibrationMode) }
     var strength by remember { mutableStateOf(settings.vibrationStrength) }
-    var smart by remember { mutableStateOf(settings.smartCandidates) }
+
+    SectionCard("振動") {
+        Text(
+            "押し込み＝押したとき軽く沈み、離したときカチッと戻る感じ。スマホの振動は1か所なので、押した場所だけを震わせることはできません",
+            style = MaterialTheme.typography.bodySmall,
+        )
+        ChoiceRow(listOf("オフ" to 0, "軽い" to 1, "カチッ" to 2, "押し込み" to 3), mode) {
+            mode = it; settings.vibrationMode = it
+            // 選んだらすぐ試せるように、1回鳴らす
+            io.github.soichi11208.zinna.keyboard.Haptics(context).apply { this.mode = it; this.strength = strength }.also { h -> h.down(); h.up() }
+        }
+        if (mode != 0) {
+            GlassSlider("強さ", "弱い", "強い", strength, 0.1f..1f, { strength = it }) {
+                settings.vibrationStrength = strength
+                io.github.soichi11208.zinna.keyboard.Haptics(context).apply { this.mode = mode; this.strength = strength }.also { h -> h.down(); h.up() }
+            }
+        }
+    }
+}
+
+/** 出さないようにした候補（候補を長押し →「候補から削除」で入る）。 */
+@Composable
+private fun HiddenCandidatesCard() {
+    val context = LocalContext.current
+    val settings = remember { ImeSettings(context) }
     var hidden by remember { mutableStateOf(settings.hiddenCandidates.sorted()) }
 
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("振動", style = MaterialTheme.typography.titleMedium)
-            Text(
-                "押し込み＝押したとき軽く沈み、離したときカチッと戻る感じ。スマホの振動は1か所なので、押した場所だけを震わせることはできません",
-                style = MaterialTheme.typography.bodySmall,
-            )
-            ChoiceRow(listOf("オフ" to 0, "軽い" to 1, "カチッ" to 2, "押し込み" to 3), mode) {
-                mode = it; settings.vibrationMode = it
-                // 選んだらすぐ試せるように、1回鳴らす
-                io.github.soichi11208.zinna.keyboard.Haptics(context).apply { this.mode = it; this.strength = strength }.also { h -> h.down(); h.up() }
-            }
-            if (mode != 0) {
-                GlassSlider("強さ", "弱い", "強い", strength, 0.1f..1f, { strength = it }) {
-                    settings.vibrationStrength = strength
-                    io.github.soichi11208.zinna.keyboard.Haptics(context).apply { this.mode = mode; this.strength = strength }.also { h -> h.down(); h.up() }
-                }
-            }
-
-            HorizontalDivider()
-
-            SettingSwitch(
-                title = "日付・時刻と計算の候補",
-                body = "「きょう」で 2026/11/17、「いま」で 10:25、「12*3=」で 36 のように候補に出します",
-                checked = smart,
-            ) { smart = it; settings.smartCandidates = it }
-
-            HorizontalDivider()
-
-            Text("出さないようにした候補", style = MaterialTheme.typography.titleMedium)
-            Text("候補を長押しすると、ここに入ります。「戻す」でまた出るようになります", style = MaterialTheme.typography.bodySmall)
-            if (hidden.isEmpty()) {
-                Text("（なし）", style = MaterialTheme.typography.bodySmall)
-            }
-            for (word in hidden) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(word, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
-                    TextButton(onClick = {
-                        settings.hiddenCandidates = settings.hiddenCandidates - word
-                        hidden = settings.hiddenCandidates.sorted()
-                    }) { Text("戻す") }
-                }
+    SectionCard("出さないようにした候補") {
+        Text("候補を長押し →「候補から削除」で、ここに入ります。「戻す」でまた出るようになります", style = MaterialTheme.typography.bodySmall)
+        if (hidden.isEmpty()) {
+            Text("（なし）", style = MaterialTheme.typography.bodySmall)
+        }
+        for (word in hidden) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(word, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
+                TextButton(onClick = {
+                    settings.hiddenCandidates = settings.hiddenCandidates - word
+                    hidden = settings.hiddenCandidates.sorted()
+                }) { Text("戻す") }
             }
         }
     }

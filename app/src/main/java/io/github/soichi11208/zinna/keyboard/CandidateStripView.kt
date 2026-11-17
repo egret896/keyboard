@@ -71,9 +71,12 @@ class CandidateStripView(context: Context) : FrameLayout(context) {
             }
             val gap = (4f * d).toInt()
             view.background = android.graphics.drawable.InsetDrawable(frame, gap, gap, gap, gap)
-            val pad = (14f * d).toInt()
-            view.setPadding(pad, pad, pad, pad)
+            val pad = (10f * d).toInt()
+            view.setPadding(pad + gap, pad, pad + gap, pad)
+            // クリップボードの文字は候補より小さめ（たくさん読めるように）
+            view.setTextSize(TypedValue.COMPLEX_UNIT_SP, candidateSizeSp * 0.72f)
         } else {
+            view.setTextSize(TypedValue.COMPLEX_UNIT_SP, candidateSizeSp)
             view.isSingleLine = true
             view.gravity = Gravity.CENTER
             view.minWidth = 0

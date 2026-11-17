@@ -1086,7 +1086,8 @@ class FlickKeyboardView @JvmOverloads constructor(
                 else -> modifierPaint
             }
             if (memento && !glass) {
-                if (placed !== gaugeKey && placed.spec.center.action !is KeyAction.OpenPanel) {
+                if (placed !== gaugeKey && placed.spec.center.action !is KeyAction.OpenPanel &&
+                    placed.spec.center.action !is KeyAction.Enter) {
                     drawMementoKey(canvas, placed, faceLabel(placed.spec)); return
                 }
                 drawMementoKey(canvas, placed, null)
@@ -1118,6 +1119,10 @@ class FlickKeyboardView @JvmOverloads constructor(
                 drawPanelIcon(canvas, placed.bounds)
                 return
             }
+            if (placed.spec.center.action is KeyAction.Enter) {
+                drawEnterIcon(canvas, placed.bounds)
+                return
+            }
             val baseline = placed.bounds.centerY() - (labelPaint.descent() + labelPaint.ascent()) / 2f
             canvas.drawText(faceLabel(placed.spec), placed.bounds.centerX(), baseline, labelPaint)
     }
@@ -1137,27 +1142,96 @@ class FlickKeyboardView @JvmOverloads constructor(
      * 「☺記」キーを、絵文字ではなく線だけのにこちゃんマーク＋「記」で描く。
      * 絵文字フォントだとそこだけカラーになってしまうので、自分で線を引く。
      */
+    /**
+     * ⏎キーを、入力欄が求めている動きのアイコンで描く。
+     *   改行 ↵ ／ 送信 紙飛行機 ／ 検索 虫めがね ／ 次へ → ／ 前へ ← ／ 完了 ✓ ／ 移動 →|
+     */
+    private fun drawEnterIcon(canvas: Canvas, bounds: RectF) {
+        val s = labelPaint.textSize * 0.5f   // アイコンの半分の大きさ
+        val cx = bounds.centerX()
+        val cy = bounds.centerY()
+        val p = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = labelPaint.color
+            style = Paint.Style.STROKE
+            strokeWidth = s * 0.16f
+            strokeCap = Paint.Cap.ROUND
+            strokeJoin = Paint.Join.ROUND
+        }
+        val path = android.graphics.Path()
+        when (enterIcon) {
+            ENTER_SEND -> {
+                // 紙飛行機（右上へ飛ぶ三角）
+                path.moveTo(cx - s, cy - s * 0.15f)
+                path.lineTo(cx + s, cy - s * 0.85f)
+                path.lineTo(cx + s * 0.35f, cy + s * 0.9f)
+                path.lineTo(cx - s * 0.05f, cy + s * 0.15f)
+                path.close()
+                path.moveTo(cx - s * 0.05f, cy + s * 0.15f)
+                path.lineTo(cx + s, cy - s * 0.85f)
+            }
+            ENTER_SEARCH -> {
+                val r = s * 0.6f
+                canvas.drawCircle(cx - s * 0.2f, cy - s * 0.2f, r, p)
+                path.moveTo(cx - s * 0.2f + r * 0.72f, cy - s * 0.2f + r * 0.72f)
+                path.lineTo(cx + s * 0.95f, cy + s * 0.95f)
+            }
+            ENTER_DONE -> {
+                path.moveTo(cx - s * 0.9f, cy + s * 0.05f)
+                path.lineTo(cx - s * 0.25f, cy + s * 0.7f)
+                path.lineTo(cx + s * 0.95f, cy - s * 0.65f)
+            }
+            ENTER_NEXT, ENTER_GO -> {
+                path.moveTo(cx - s, cy)
+                path.lineTo(cx + s * 0.85f, cy)
+                path.moveTo(cx + s * 0.25f, cy - s * 0.6f)
+                path.lineTo(cx + s * 0.9f, cy)
+                path.lineTo(cx + s * 0.25f, cy + s * 0.6f)
+                if (enterIcon == ENTER_GO) {
+                    path.moveTo(cx + s * 1.1f, cy - s * 0.75f)
+                    path.lineTo(cx + s * 1.1f, cy + s * 0.75f)
+                }
+            }
+            ENTER_PREVIOUS -> {
+                path.moveTo(cx + s, cy)
+                path.lineTo(cx - s * 0.85f, cy)
+                path.moveTo(cx - s * 0.25f, cy - s * 0.6f)
+                path.lineTo(cx - s * 0.9f, cy)
+                path.lineTo(cx - s * 0.25f, cy + s * 0.6f)
+            }
+            else -> {
+                // 改行 ↵
+                path.moveTo(cx + s * 0.85f, cy - s * 0.8f)
+                path.lineTo(cx + s * 0.85f, cy + s * 0.2f)
+                path.lineTo(cx - s * 0.85f, cy + s * 0.2f)
+                path.moveTo(cx - s * 0.35f, cy - s * 0.3f)
+                path.lineTo(cx - s * 0.9f, cy + s * 0.2f)
+                path.lineTo(cx - s * 0.35f, cy + s * 0.7f)
+            }
+        }
+        canvas.drawPath(path, p)
+    }
+
+    /** ⏎キーのアイコン（[ENTER_NEWLINE] など）。入力欄が変わるたびにIMEが入れる。 */
+    var enterIcon: Int = ENTER_NEWLINE
+        set(value) { if (field != value) { field = value; invalidate() } }
+
     private fun drawPanelIcon(canvas: Canvas, bounds: RectF) {
-        val textWidth = labelPaint.measureText("記")
-        val r = labelPaint.textSize * 0.42f
-        val gap = r * 0.35f
-        val total = r * 2 + gap + textWidth
-        val cx = bounds.centerX() - total / 2f + r
+        // 「記」の字はやめて、にこちゃんマークだけを真ん中に描く
+        val r = labelPaint.textSize * 0.55f
+        val cx = bounds.centerX()
         val cy = bounds.centerY()
         val stroke = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = labelPaint.color
             style = Paint.Style.STROKE
-            strokeWidth = r * 0.16f
+            strokeWidth = r * 0.13f
             strokeCap = Paint.Cap.ROUND
         }
         canvas.drawCircle(cx, cy, r, stroke)
         val eye = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = labelPaint.color }
-        canvas.drawCircle(cx - r * 0.35f, cy - r * 0.25f, r * 0.11f, eye)
-        canvas.drawCircle(cx + r * 0.35f, cy - r * 0.25f, r * 0.11f, eye)
+        canvas.drawCircle(cx - r * 0.35f, cy - r * 0.25f, r * 0.1f, eye)
+        canvas.drawCircle(cx + r * 0.35f, cy - r * 0.25f, r * 0.1f, eye)
         val mouth = RectF(cx - r * 0.5f, cy - r * 0.3f, cx + r * 0.5f, cy + r * 0.55f)
         canvas.drawArc(mouth, 20f, 140f, false, stroke)
-        val baseline = cy - (labelPaint.descent() + labelPaint.ascent()) / 2f
-        canvas.drawText("記", cx + r + gap + textWidth / 2f, baseline, labelPaint)
     }
 
     /**
@@ -1536,6 +1610,13 @@ class FlickKeyboardView @JvmOverloads constructor(
 
         /** 左へずらしてからゲージがたまり始めるまで。 */
         private const val GAUGE_DELAY_MS = 150L
+        const val ENTER_NEWLINE = 0
+        const val ENTER_SEND = 1
+        const val ENTER_SEARCH = 2
+        const val ENTER_NEXT = 3
+        const val ENTER_DONE = 4
+        const val ENTER_GO = 5
+        const val ENTER_PREVIOUS = 6
 
         /** 片手モードのときのキーボードの幅（画面幅に対する割合）。 */
         private const val ONE_HAND_RATIO = 0.8f

@@ -300,6 +300,7 @@ class ZinnaImeService : InputMethodService() {
         keyboard.backdropProvider = { root.snapshotBehind(keyboard) }
         keyboard.backdropRevision = { root.backdropRevision }
         keyboardView = keyboard
+        keyboard.enterIcon = enterIconFor(currentInputEditorInfo)
         builtFromRevision = settings.revision
         loaded?.let { session.applyInputStyle(effectiveStyle(it.inputStyle)) }
         return root
@@ -363,6 +364,7 @@ class ZinnaImeService : InputMethodService() {
             setInputView(onCreateInputView())
         }
         applyPrivacy(info)
+        keyboardView?.enterIcon = enterIconFor(info)
         if (!restarting) session.resetContext()
         lastTableKey = null
         clientContextValid = false
@@ -711,9 +713,31 @@ class ZinnaImeService : InputMethodService() {
      * With an empty composition, a half-width space is returned unconsumed for the client to
      * insert. Rendering that response alone would silently swallow the keystroke.
      */
+    /** 入力欄が求めるエンターの動きから、⏎キーのアイコンを決める（動きと同じ決まりで）。 */
+    private fun enterIconFor(info: EditorInfo?): Int {
+        val imeOptions = info?.imeOptions ?: 0
+        if (EnterRouting.targetFor(imeOptions, info?.inputType ?: 0) != EnterRouting.Target.ACTION) {
+            return FlickKeyboardView.ENTER_NEWLINE
+        }
+        return when (imeOptions and EditorInfo.IME_MASK_ACTION) {
+            EditorInfo.IME_ACTION_SEND -> FlickKeyboardView.ENTER_SEND
+            EditorInfo.IME_ACTION_SEARCH -> FlickKeyboardView.ENTER_SEARCH
+            EditorInfo.IME_ACTION_NEXT -> FlickKeyboardView.ENTER_NEXT
+            EditorInfo.IME_ACTION_DONE -> FlickKeyboardView.ENTER_DONE
+            EditorInfo.IME_ACTION_GO -> FlickKeyboardView.ENTER_GO
+            EditorInfo.IME_ACTION_PREVIOUS -> FlickKeyboardView.ENTER_PREVIOUS
+            else -> FlickKeyboardView.ENTER_NEWLINE
+        }
+    }
+
     private fun handleSpace() {
         if (session.zenzaiEnabled && isComposing) {
             zenzaiCandidate?.let { onCandidateSelected(it); return }
+        }
+        // 「空白は常に半角」がONなら、変換中でないときはどの画面でも半角空白を入れる
+        if (settings.alwaysHalfSpace && !isComposing) {
+            currentInputConnection?.commitText(" ", 1)
+            return
         }
         val state = session.sendSpecialKey(KeyEvent.SpecialKey.SPACE)
         if (state == null || !state.consumed) {

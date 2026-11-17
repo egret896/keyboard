@@ -217,6 +217,11 @@ class ImeSettings(context: Context) {
         set(v) { prefs.edit().putStringSet("hidden_candidates", v.toSet()).apply(); bumpRevision() }
 
     /** 日付・時刻（きょう・いま など）と計算（12*3= など）の候補を出すか。 */
+    /** 空白を、かなの画面でも常に半角にする。 */
+    var alwaysHalfSpace: Boolean
+        get() = prefs.getBoolean("always_half_space", false)
+        set(v) { prefs.edit().putBoolean("always_half_space", v).apply() }
+
     var smartCandidates: Boolean
         get() = prefs.getBoolean("smart_candidates", true)
         set(v) { prefs.edit().putBoolean("smart_candidates", v).apply(); bumpRevision() }
