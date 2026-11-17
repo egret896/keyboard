@@ -99,6 +99,8 @@ class FlickKeyboardView @JvmOverloads constructor(
 
     /** ゲージが空から満タンになるまでの時間（ミリ秒）。設定で変えられる。 */
     var gaugeFillMs: Long = 1000L
+    // 短いチャージ時間では待ち時間も縮める（0.01秒設定ならほぼ即時）
+    private fun gaugeDelay(): Long = minOf(GAUGE_DELAY_MS, gaugeFillMs / 4)
 
     /** ゲージが満タンになったときに呼ばれる（全削除）。 */
     var clearAllListener: (() -> Unit)? = null
@@ -211,7 +213,7 @@ class FlickKeyboardView @JvmOverloads constructor(
     }
 
     private fun gaugeProgress(): Float {
-        val elapsed = SystemClock.uptimeMillis() - gaugeStartedAt - GAUGE_DELAY_MS
+        val elapsed = SystemClock.uptimeMillis() - gaugeStartedAt - gaugeDelay()
         return (elapsed.toFloat() / gaugeFillMs).coerceIn(0f, 1f)
     }
 
@@ -222,7 +224,7 @@ class FlickKeyboardView @JvmOverloads constructor(
         gaugeKey = key
         gaugeStartedAt = SystemClock.uptimeMillis()
         handler.removeCallbacks(gaugeTicker)
-        handler.postDelayed(gaugeTicker, GAUGE_DELAY_MS)
+        handler.postDelayed(gaugeTicker, gaugeDelay())
     }
 
     private fun cancelGauge() {

@@ -304,25 +304,24 @@ private fun MyKeyboardCard() {
 
             if (holdToClear) {
                 Text(
-                    "全削除のチャージ時間：%.1f 秒".format(charge / 1000f),
+                    "全削除のチャージ時間：%.2f 秒".format(charge / 1000f),
                     style = MaterialTheme.typography.bodySmall,
                 )
-                // 0.1秒きざみ（0.1〜3.0秒）。−／＋で0.1秒ずつ動かせる
+                // 0.01秒きざみ（0.01〜3.00秒）。−／＋で0.01秒ずつ動かせる
                 val setCharge = { v: Float ->
-                    charge = (Math.round(v / 100f) * 100f).coerceIn(100f, 3000f)
+                    charge = (Math.round(v / 10f) * 10f).coerceIn(10f, 3000f)
                     settings.clearChargeMs = charge.toLong()
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    TextButton(onClick = { setCharge(charge - 100f) }) { Text("−") }
+                    TextButton(onClick = { setCharge(charge - 10f) }) { Text("−") }
                     Slider(
                         value = charge,
                         onValueChange = { charge = it },
                         onValueChangeFinished = { setCharge(charge) },
-                        valueRange = 100f..3000f,
-                        steps = 28,
+                        valueRange = 10f..3000f,
                         modifier = Modifier.weight(1f).padding(horizontal = 4.dp),
                     )
-                    TextButton(onClick = { setCharge(charge + 100f) }) { Text("＋") }
+                    TextButton(onClick = { setCharge(charge + 10f) }) { Text("＋") }
                 }
             }
 
