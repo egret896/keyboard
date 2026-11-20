@@ -20,6 +20,9 @@ jobs:
     timeout-minutes: 300
     env:
       NDK_VERSION: 27.2.12479018
+      # AI変換（Zenzai）のモデル（約99MB）を入れるか。使わないので外して軽くする。
+      # 入れたくなったら "true" にする
+      BUNDLE_ZENZAI: "false"
     steps:
       - uses: actions/checkout@v5
         with:
@@ -103,6 +106,7 @@ jobs:
 
       - name: AI変換エンジン（Zenzai）を準備
         id: zenzai
+        if: env.BUNDLE_ZENZAI == 'true'
         continue-on-error: true
         run: |
           ./scripts/fetch_zenzai_public.sh
@@ -136,7 +140,7 @@ jobs:
         run: |
           echo "sdk.dir=$ANDROID_HOME" > local.properties
           # Zenzai の準備に成功したときだけ同梱する（失敗してもふつうのAPKは作る）
-          if [ "${{ steps.zenzai.outputs.ok }}" = "true" ]; then ZENZAI="-Pzenzai=true"; else ZENZAI=""; echo "::warning::Zenzai なしで組み立てます"; fi
+          if [ "${{ steps.zenzai.outputs.ok }}" = "true" ]; then ZENZAI="-Pzenzai=true"; else ZENZAI=""; echo "AI変換（Zenzai）なしで組み立てます"; fi
           ./gradlew :app:assembleDebug --no-daemon $ZENZAI
           mkdir -p dist
           ls app/build/outputs/apk/debug/

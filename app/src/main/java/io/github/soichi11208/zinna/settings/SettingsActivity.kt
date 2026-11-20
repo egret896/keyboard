@@ -125,7 +125,8 @@ private fun SettingsScreen(modifier: Modifier = Modifier) {
                         ClearAllCard()
                     }
                     Page.CONVERT -> {
-                        ZenzaiCard()
+                        // AI変換のモデルが入っていない版では、AIの設定は出さない
+                        if (remember { io.github.soichi11208.zinna.ime.ZenzaiEngine.isBundled(context) }) ZenzaiCard()
                         CandidateCard()
                         LearnedCard()
                         CustomizeCard(keyboardPart = false)

@@ -34,7 +34,8 @@ class ImeSettings(private val context: Context) {
         set(value) = prefs.edit().putBoolean(KEY_PURE_BLACK, value).apply()
 
     var zenzaiPlusEnabled: Boolean
-        get() = prefs.getBoolean(KEY_ZENZAI_PLUS, zenzaiBundled)
+        // モデルが入っていない版では、前にONにしていても使わない
+        get() = zenzaiBundled && prefs.getBoolean(KEY_ZENZAI_PLUS, zenzaiBundled)
         set(value) {
             prefs.edit().putBoolean(KEY_ZENZAI_PLUS, value).apply()
             bumpRevision()
