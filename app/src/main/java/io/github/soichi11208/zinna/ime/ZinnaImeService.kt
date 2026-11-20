@@ -821,9 +821,10 @@ class ZinnaImeService : InputMethodService() {
                     ic.commitText("", 1)
                 }
                 EditorDeletion.PRECEDING_CHARACTER -> {
-                    // 消す1文字を覚えておく（すぐ「戻す」で戻せるように）。絵文字などの2つ組の文字もまとめて
-                    val before = ic.getTextBeforeCursor(2, 0)?.toString().orEmpty()
-                    val ch = if (before.length == 2 && Character.isLowSurrogate(before[1])) before else before.takeLast(1)
+                    // 見た目の1文字をまるごと消す（絵文字は部品が何個もあるので、半分だけ消すと「�」になる）。
+                    // 消した文字は覚えておく（すぐ「戻す」で戻せるように）。
+                    val before = ic.getTextBeforeCursor(GRAPHEME_LOOK_CHARS, 0)?.toString().orEmpty()
+                    val ch = before.takeLast(Graphemes.lastLength(before))
                     rememberDeleted(ch)
                     ic.deleteSurroundingText(ch.length.coerceAtLeast(1), 0)
                 }
@@ -898,12 +899,14 @@ class ZinnaImeService : InputMethodService() {
             return
         }
         val from = if (delta < 0) minOf(selStart, selEnd) else maxOf(selStart, selEnd)
+        // 見た目の1文字ぶん動かす（絵文字の途中で止まると、カーソルが動かないように見える）
+        val look = GRAPHEME_LOOK_CHARS * kotlin.math.abs(delta)
         val target = if (delta < 0) {
-            val before = ic.getTextBeforeCursor(-delta, 0)?.length ?: 0
-            from - minOf(-delta, before)
+            val before = ic.getTextBeforeCursor(look, 0) ?: ""
+            from - Graphemes.lastLength(before, -delta)
         } else {
-            val after = ic.getTextAfterCursor(delta, 0)?.length ?: 0
-            from + minOf(delta, after)
+            val after = ic.getTextAfterCursor(look, 0) ?: ""
+            from + Graphemes.firstLength(after, delta)
         }
         if (target < 0) return
         selStart = target; selEnd = target
@@ -1539,6 +1542,8 @@ class ZinnaImeService : InputMethodService() {
 
         /** 全削除で一度に見る文字数の上限。 */
         private const val CLEAR_ALL_MAX_CHARS = 100_000
+        /** 見た目の1文字を探すために読む長さ（家族の絵文字など、長い絵文字でも入る長さ） */
+        private const val GRAPHEME_LOOK_CHARS = 32
 
 
         /** '*' in mozc's flick/12-key tables. See data/preedit/flick-hiragana.tsv upstream. */
