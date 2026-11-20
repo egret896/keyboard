@@ -222,6 +222,11 @@ class ImeSettings(private val context: Context) {
         get() = prefs.getBoolean("always_half_space", false)
         set(v) { prefs.edit().putBoolean("always_half_space", v).apply() }
 
+    /** カタカナ語を打ったとき、英語の綴りも候補に出す（あびりてぃ → ability）。 */
+    var englishCandidates: Boolean
+        get() = prefs.getBoolean("english_candidates", true)
+        set(v) { prefs.edit().putBoolean("english_candidates", v).apply() }
+
     var smartCandidates: Boolean
         get() = prefs.getBoolean("smart_candidates", true)
         set(v) { prefs.edit().putBoolean("smart_candidates", v).apply(); bumpRevision() }

@@ -41,3 +41,6 @@ keystore.properties
 # 専用の署名鍵（金庫から取り出したもの。絶対にコミットしない）
 signing/private.p12
 *.p12
+
+# CIで作る英語の候補の辞書（fetch_dictionaries.sh が作る）
+app/src/main/assets/dict/

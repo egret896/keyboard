@@ -391,6 +391,7 @@ private fun CandidateCard() {
     val settings = remember { ImeSettings(context) }
     var twoLines by remember { mutableStateOf(settings.candidateTwoLines) }
     var smart by remember { mutableStateOf(settings.smartCandidates) }
+    var english by remember { mutableStateOf(settings.englishCandidates) }
 
     SectionCard("予測変換") {
         SettingSwitch(
@@ -406,6 +407,14 @@ private fun CandidateCard() {
             body = "「きょう」で 2026/11/17、「いま」で 10:25、「12*3=」で 36 のように候補に出します",
             checked = smart,
         ) { smart = it; settings.smartCandidates = it }
+
+        HorizontalDivider()
+
+        SettingSwitch(
+            title = "英語の候補",
+            body = "カタカナ語を打つと、英語の綴りも候補に出します（あびりてぃ → ability、みーてぃんぐ → meeting）。約2万5千語",
+            checked = english,
+        ) { english = it; settings.englishCandidates = it }
     }
 }
 

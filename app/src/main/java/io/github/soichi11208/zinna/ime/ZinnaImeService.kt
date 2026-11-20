@@ -175,6 +175,7 @@ class ZinnaImeService : InputMethodService() {
         super.onCreate()
         repository = LayoutRepository(this)
         settings = ImeSettings(this)
+        EnglishCandidates.preload(this)
         session = ConversionSession(this)
         zenzai = ZenzaiEngine(this) {
             Toast.makeText(this, "AI変換でエラーが起きました。ふつうの変換はそのまま使えます", Toast.LENGTH_LONG).show()
@@ -1066,6 +1067,12 @@ class ZinnaImeService : InputMethodService() {
         val hidden = settings.hiddenCandidates
         // 覚えた言葉を先頭に（趣味ボードで覚えたものは趣味ボードのときだけ）
         var out = (learnedCandidates(state.preeditReading) + list).distinctBy { it.text }
+        // カタカナ語なら英語の綴りを、いちばん目の候補のすぐ後ろに
+        if (settings.englishCandidates) {
+            val english = EnglishCandidates.lookup(state.preeditReading)
+                .mapIndexed { i, t -> MozcSession.Candidate(-5000 - i, t) }
+            if (english.isNotEmpty()) out = (out.take(1) + english + out.drop(1)).distinctBy { it.text }
+        }
         if (settings.smartCandidates) {
             val calc = SmartCandidates.calculate(state.preedit).mapIndexed { i, t -> MozcSession.Candidate(-2000 - i, t) }
             val dates = SmartCandidates.dateTime(state.preeditReading).mapIndexed { i, t -> MozcSession.Candidate(-3000 - i, t) }

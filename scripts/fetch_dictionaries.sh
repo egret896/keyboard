@@ -84,6 +84,9 @@ if [[ "${ja_en_entries}" -lt 10000 ]]; then
 fi
 install -m 644 "${merged}" "${DEST}/${JA_EN_FILE}"
 echo "    ${ja_en_entries} entries -> ${DEST}/${JA_EN_FILE}"
+# キーボードでも直接使う（「あびりてぃ」のように伸ばし棒なしで打っても英語を出すため）
+mkdir -p "${ROOT}/app/src/main/assets/dict"
+cut -f1,2 "${merged}" > "${ROOT}/app/src/main/assets/dict/katakana_english.tsv"
 
 # utuhiro78/mozcdic-ut-jawiki — readings and surfaces harvested from the Japanese Wikipedia.
 # Distributed in mozc's *system* dictionary format (reading, lid, rid, cost, surface), and the lid,
