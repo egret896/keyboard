@@ -58,7 +58,7 @@ def load_table(path: pathlib.Path) -> dict[str, str]:
 
 # (center, left, up, right, down) as mozc flick-hiragana table keys.
 # い/う/え/お sit left/up/right/down of あ, which is the standard Japanese flick arrangement.
-LITERAL_KANA = {"「", "」", "~"}
+LITERAL_KANA = {"「", "」", "（", "）", "~"}
 
 KANA_KEYS = {
     "a":    ("1", "_", ";", ":", "@"),
@@ -68,7 +68,7 @@ KANA_KEYS = {
     "na":   ("5", "j", "k", "l", "%"),
     "ha":   ("6", "m", "n", "o", "&"),
     "ma":   ("7", "p", "q", "r", "s"),
-    "ya":   ("8", "「", "u", "」", "^"),
+    "ya":   ("8", "（", "u", "）", "^"),   # 左右は（）
     "ra":   ("9", "w", "x", "y", "z"),
     "wa":   ("0", "+", "/", "-", "<"),
     "punc": ("#", ",", "?", "!", ">"),

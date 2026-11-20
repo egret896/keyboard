@@ -60,6 +60,8 @@ object ProfileBackup {
     private const val PROFILE_PREFIX = "mozc/"
     private const val PREFS_PREFIX = "prefs/"
     private const val FILES_PREFIX = "files/"
+    /** スマホの鍵で暗号化しているファイル。中身を取り出して入れ、戻すときにまた暗号化する。 */
+    private const val SECURE_PREFIX = "secure/"
 
     private const val STAGED_FILE = "pending_restore.enc"
 
@@ -116,6 +118,8 @@ object ProfileBackup {
     data class Extras(
         val preferences: List<String> = emptyList(),
         val directories: List<String> = emptyList(),
+        /** filesDir にある、[SecureStore] で暗号化したファイルの名前（覚えた言葉など）。 */
+        val secureFiles: List<String> = emptyList(),
     )
 
     /**
@@ -150,6 +154,9 @@ object ProfileBackup {
 
             for (name in extras.preferences) {
                 zip.write(PREFS_PREFIX + name + ".json", preferencesAsJson(app, name).toByteArray())
+            }
+            for (name in extras.secureFiles) {
+                SecureStore.readBytes(File(app.filesDir, name))?.let { zip.write(SECURE_PREFIX + name, it) }
             }
             for (directory in extras.directories) {
                 val root = File(app.filesDir, directory)
@@ -264,6 +271,13 @@ object ProfileBackup {
                         )
                     name.startsWith(FILES_PREFIX) ->
                         restoreFile(context.filesDir, name.removePrefix(FILES_PREFIX), bytes)
+                    name.startsWith(SECURE_PREFIX) -> {
+                        val leaf = name.removePrefix(SECURE_PREFIX)
+                        // 戻してよいのは「覚えた言葉」のファイルだけ
+                        if (leaf.startsWith("learned_") && leaf.endsWith(".enc") && !leaf.contains('/') && !leaf.contains('\\') && leaf != ".." && leaf != STAGED_FILE) {
+                            SecureStore.writeBytes(File(context.filesDir, leaf), bytes)
+                        }
+                    }
                 }
             }
             Log.i(TAG, "restore applied")

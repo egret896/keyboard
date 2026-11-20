@@ -352,10 +352,10 @@
           },
           "style": "CHARACTER",
           "left": {
-            "label": "「",
+            "label": "（",
             "action": {
               "type": "input",
-              "text": "「"
+              "text": "（"
             }
           },
           "up": {
@@ -366,10 +366,10 @@
             }
           },
           "right": {
-            "label": "」",
+            "label": "）",
             "action": {
               "type": "input",
-              "text": "」"
+              "text": "）"
             }
           },
           "down": {

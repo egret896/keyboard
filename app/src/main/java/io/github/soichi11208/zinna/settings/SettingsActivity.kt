@@ -127,6 +127,7 @@ private fun SettingsScreen(modifier: Modifier = Modifier) {
                     Page.CONVERT -> {
                         ZenzaiCard()
                         CandidateCard()
+                        LearnedCard()
                         CustomizeCard(keyboardPart = false)
                         HiddenCandidatesCard()
                     }
@@ -781,6 +782,10 @@ private val BACKUP_EXTRAS = ProfileBackup.Extras(
         LayoutRepository.LAYOUTS_DIR,
         LayoutRepository.THEMES_DIR,
     ),
+    secureFiles = listOf(
+        io.github.soichi11208.zinna.ime.LearnedWords.MAIN_FILE,
+        io.github.soichi11208.zinna.ime.LearnedWords.HOBBY_FILE,
+    ),
 )
 
 /** Short enough not to be a chore, long enough that PBKDF2 has something to work with. */
@@ -1245,7 +1250,9 @@ private fun HobbyCard() {
     var text by remember { mutableStateOf(settings.hobbyText) }
     var hasImage by remember { mutableStateOf(settings.hobbyBackgroundImage != null) }
     var opacity by remember { mutableStateOf(settings.hobbyBackgroundOpacity) }
-    var learned by remember { mutableStateOf(settings.hobbyWords.size) }
+    var learned by remember {
+        mutableStateOf(io.github.soichi11208.zinna.ime.LearnedWords(context, io.github.soichi11208.zinna.ime.LearnedWords.HOBBY_FILE).size + settings.hobbyWords.size)
+    }
     var confirmClear by remember { mutableStateOf(false) }
     val pickImage = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult
@@ -1291,7 +1298,37 @@ private fun HobbyCard() {
         } else {
             Text("覚えた言葉と、趣味ボードの記号・絵文字の履歴を消します。元に戻せません", style = MaterialTheme.typography.bodySmall)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = { settings.clearHobbyLearning(); learned = 0; confirmClear = false }) { Text("消す") }
+                Button(onClick = {
+                    settings.clearHobbyLearning()
+                    io.github.soichi11208.zinna.ime.LearnedWords(context, io.github.soichi11208.zinna.ime.LearnedWords.HOBBY_FILE).clear()
+                    learned = 0; confirmClear = false
+                }) { Text("消す") }
+                OutlinedButton(onClick = { confirmClear = false }) { Text("やめる") }
+            }
+        }
+    }
+}
+
+
+/** 表のボードで覚えた言葉の数と、消すボタン。 */
+@Composable
+private fun LearnedCard() {
+    val context = LocalContext.current
+    val learnedWords = remember { io.github.soichi11208.zinna.ime.LearnedWords(context, io.github.soichi11208.zinna.ime.LearnedWords.MAIN_FILE) }
+    var learned by remember { mutableStateOf(learnedWords.size) }
+    var confirmClear by remember { mutableStateOf(false) }
+    SectionCard("覚えた言葉") {
+        Text(
+            "選んだ候補を覚えて、次から先頭に出します（AI変換の候補も覚えます）。プライベートモード中や趣味ボードで打ったものは、ここには入りません",
+            style = MaterialTheme.typography.bodySmall,
+        )
+        Text("覚えた言葉：$learned 語", style = MaterialTheme.typography.bodyMedium)
+        if (!confirmClear) {
+            OutlinedButton(onClick = { confirmClear = true }, enabled = learned > 0) { Text("覚えた言葉を消す") }
+        } else {
+            Text("覚えた言葉を全部消します。元に戻せません", style = MaterialTheme.typography.bodySmall)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = { learnedWords.clear(); learned = 0; confirmClear = false }) { Text("消す") }
                 OutlinedButton(onClick = { confirmClear = false }) { Text("やめる") }
             }
         }

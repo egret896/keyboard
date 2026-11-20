@@ -372,6 +372,8 @@ class ZinnaImeService : InputMethodService() {
 
     override fun onStartInputView(info: EditorInfo?, restarting: Boolean) {
         super.onStartInputView(info, restarting)
+        learnedMain.reload()
+        learnedHobby.reload()
         forgetDeleted()
         selStart = info?.initialSelStart ?: -1
         selEnd = info?.initialSelEnd ?: -1
@@ -459,6 +461,8 @@ class ZinnaImeService : InputMethodService() {
 
     override fun onFinishInput() {
         super.onFinishInput()
+        // mozc が覚えたことを、すぐファイルに書く（アプリが止められても消えないように）
+        session.syncLearning()
         cancelZenzai()
         lastState = null
         // Anything half-composed at this point can no longer be committed anywhere sensible.
@@ -978,7 +982,7 @@ class ZinnaImeService : InputMethodService() {
         val hadComposition = isComposing
         if (state.committedText.isNotEmpty() && !state.hasComposition && hadComposition) {
             learnConfirmed(state.committedText)
-            learnHobby(lastState?.preeditReading.orEmpty(), state.committedText)
+            learnWord(lastState?.preeditReading.orEmpty(), state.committedText)
         }
         val removeOldEditorComposition =
             BackspaceRouting.shouldRemoveOldEditorComposition(
@@ -1060,8 +1064,8 @@ class ZinnaImeService : InputMethodService() {
      */
     private fun decorate(list: List<MozcSession.Candidate>, state: MozcSession.State): List<MozcSession.Candidate> {
         val hidden = settings.hiddenCandidates
-        // 趣味ボードで覚えた言葉は、趣味ボードのときだけ先頭に出す
-        var out = (hobbyCandidates(state.preeditReading) + list).distinctBy { it.text }
+        // 覚えた言葉を先頭に（趣味ボードで覚えたものは趣味ボードのときだけ）
+        var out = (learnedCandidates(state.preeditReading) + list).distinctBy { it.text }
         if (settings.smartCandidates) {
             val calc = SmartCandidates.calculate(state.preedit).mapIndexed { i, t -> MozcSession.Candidate(-2000 - i, t) }
             val dates = SmartCandidates.dateTime(state.preeditReading).mapIndexed { i, t -> MozcSession.Candidate(-3000 - i, t) }
@@ -1161,7 +1165,7 @@ class ZinnaImeService : InputMethodService() {
         forgetDeleted()
         if (candidate.id < 0 && isComposing) {
             learnConfirmed(candidate.text)
-            learnHobby(lastState?.preeditReading.orEmpty(), candidate.text)
+            learnWord(lastState?.preeditReading.orEmpty(), candidate.text)
         }
         cancelZenzai()
         candidateView?.expanded = false
@@ -1303,30 +1307,41 @@ class ZinnaImeService : InputMethodService() {
         showIdleActions()
     }
 
-    /** 趣味ボードで覚えてよいか（プライベートモードや、学習しないでと頼む欄では覚えない）。 */
-    private fun hobbyCanLearn(): Boolean {
+    private val learnedMain by lazy { LearnedWords(this, LearnedWords.MAIN_FILE) }
+    private val learnedHobby by lazy {
+        LearnedWords(this, LearnedWords.HOBBY_FILE).also { hobby ->
+            // 前の版は趣味ボードの言葉を設定に平文で置いていたので、暗号化した方へ移す
+            val old = settings.hobbyWords
+            if (old.isNotEmpty()) {
+                for ((r, w) in old.asReversed()) hobby.remember(r, w)
+                settings.hobbyWords = emptyList()
+            }
+        }
+    }
+
+    /** 覚えてよいか（プライベートモード・パスワード欄・学習しないでと頼む欄では覚えない）。 */
+    private fun canLearn(): Boolean {
         val info = currentInputEditorInfo
-        return settings.hobbyMode && !settings.privateMode &&
+        return !settings.privateMode &&
             !isPasswordField(info?.inputType ?: 0) &&
             ((info?.imeOptions ?: 0) and EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING) == 0
     }
 
-    /** 趣味ボードで確定した言葉を、趣味ボードだけの一覧に覚える。 */
-    private fun learnHobby(reading: String, word: String) {
-        if (!hobbyCanLearn() || reading.isEmpty() || word.isEmpty() || reading == word) return
-        if (word.length > 50 || reading.length > 50 || '\n' in word || '\t' in word) return
-        val pair = reading to word
-        settings.hobbyWords = listOf(pair) + settings.hobbyWords.filter { it != pair }
+    /**
+     * 確定した言葉を覚える。表のボードなら表の一覧、趣味ボードなら趣味の一覧へ。
+     * AI変換の候補を選んだときも、ここで覚える（mozc は覚えられないので）。
+     */
+    private fun learnWord(reading: String, word: String) {
+        if (!canLearn()) return
+        (if (settings.hobbyMode) learnedHobby else learnedMain).remember(reading, word)
     }
 
-    /** 趣味ボードで覚えた言葉のうち、今の読みに合うもの（同じ読み → 読みの続き の順）。 */
-    private fun hobbyCandidates(reading: String): List<MozcSession.Candidate> {
-        if (!settings.hobbyMode || reading.isEmpty()) return emptyList()
-        val words = settings.hobbyWords
-        val exact = words.filter { it.first == reading }
-        val more = words.filter { it.first != reading && it.first.startsWith(reading) }.take(3)
-        return (exact + more).map { it.second }.distinct()
-            .mapIndexed { i, w -> MozcSession.Candidate(-4000 - i, w) }
+    /** 覚えた言葉のうち、今の読みに合うもの。趣味ボードは趣味 → 表 の順（一方通行）。 */
+    private fun learnedCandidates(reading: String): List<MozcSession.Candidate> {
+        if (reading.isEmpty()) return emptyList()
+        val words = if (settings.hobbyMode) learnedHobby.lookup(reading) + learnedMain.lookup(reading)
+        else learnedMain.lookup(reading)
+        return words.distinct().mapIndexed { i, w -> MozcSession.Candidate(-4000 - i, w) }
     }
 
     private fun togglePrivateMode() {

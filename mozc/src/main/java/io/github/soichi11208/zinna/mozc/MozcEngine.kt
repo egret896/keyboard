@@ -72,6 +72,19 @@ class MozcEngine private constructor() {
         )
     }
 
+    private val syncExecutor = java.util.concurrent.Executors.newSingleThreadExecutor()
+
+    /**
+     * 覚えたこと（変換の履歴）を今すぐファイルに書く。mozc はふだん時間をおいてまとめて書くので、
+     * その前に Android がアプリを止めると、覚えたことが消えてしまう。キーボードを閉じるたびに呼ぶ。
+     * 打つ手を止めないように、裏で動かす。
+     */
+    fun syncData() {
+        syncExecutor.execute {
+            synchronized(lock) { evalLocked(Input.newBuilder().setType(Input.CommandType.SYNC_DATA)) }
+        }
+    }
+
     /** Escape hatch for inputs this facade does not model yet (config, user dictionary, …). */
     fun eval(input: Input.Builder): Output? = synchronized(lock) { evalLocked(input) }
 

@@ -222,6 +222,9 @@ class MozcSession(context: Context) {
      */
     fun stopKeyToggling(): State? = sendSessionCommand(SessionCommand.CommandType.STOP_KEY_TOGGLING)
 
+    /** mozc が覚えたことをファイルに書かせる。 */
+    fun syncLearning() { engine?.syncData() }
+
     fun close() {
         engine?.deleteSession()
         currentStyle = null

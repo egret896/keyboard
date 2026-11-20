@@ -84,6 +84,8 @@ internal class ConversionSession(private val context: Context) {
     fun undo(): MozcSession.State? = if (usesMozc) native().undo() else kana.state()
     fun selectCandidate(id: Int): MozcSession.State? = if (usesMozc) native().selectCandidate(id) else kana.state()
     fun stopKeyToggling(): MozcSession.State? = if (usesMozc) native().stopKeyToggling() else kana.state()
+    fun syncLearning() { mozc?.syncLearning() }
+
     fun close() { mozc?.close(); mozc = null; kana.clear() }
 }
 
