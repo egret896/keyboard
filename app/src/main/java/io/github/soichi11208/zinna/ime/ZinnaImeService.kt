@@ -391,7 +391,19 @@ class ZinnaImeService : InputMethodService() {
         }
         applyPrivacy(info)
         keyboardView?.enterIcon = enterIconFor(info)
-        if (!restarting) session.resetContext()
+        // 送信ボタンを押すと、アプリは入力欄を空にして入力をやり直させる（restarting = true）。
+        // そのとき mozc の中に打ちかけの文字が残っていると、次の1文字を打った瞬間に
+        // 送ったはずのメッセージがそのまま入力欄に戻ってきてしまう。
+        //   「こんにちは」入力中 → 送信 → 欄が空に → 「あ」を打つ → 「こんにちはあ」が出る
+        // なので、やり直しのときも打ちかけの文字は必ず捨てる（前の文脈だけは残す）。
+        toggleTimeout.cancel()
+        if (restarting) {
+            session.revert()
+            // 欄に下線つきの文字が残っていたら、ふつうの文字にしておく（次の入力で上書きされないように）。
+            if (isComposing) currentInputConnection?.finishComposingText()
+        } else {
+            session.resetContext()
+        }
         lastTableKey = null
         clientContextValid = false
         isComposing = false
@@ -451,17 +463,21 @@ class ZinnaImeService : InputMethodService() {
             return
         }
         // candidatesStart < 0 means the editor is no longer showing a composing region.
+        // （送信ボタンでアプリが欄を空にしたときもここに来る）
         if (candidatesStart < 0 && isComposing) {
+            toggleTimeout.cancel()
             cancelZenzai()
             session.resetContext()
             isComposing = false
             lastTableKey = null
+            lastState = null
             showIdleActions()
         }
     }
 
     override fun onFinishInput() {
         super.onFinishInput()
+        toggleTimeout.cancel()
         // mozc が覚えたことを、すぐファイルに書く（アプリが止められても消えないように）
         session.syncLearning()
         cancelZenzai()
