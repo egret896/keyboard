@@ -142,9 +142,20 @@ echo "    ${jawiki_entries} entries -> ${DEST}/${JAWIKI_FILE}"
 # candidate. Shipped to the keyboard as a sorted `code<TAB>address` asset and looked up on the
 # phone; the keyboard itself never goes online. Japan Post replaces the file every month under the
 # same name, so like JMdict it cannot be pinned, and it is optional: no file means no candidate.
-ZIP_URL="https://www.post.japanpost.jp/zipcode/dl/kogaki/zip/ken_all.zip"
+# The site moved its downloads in 2026 and the old path now answers 404; both are tried.
+ZIP_URLS=(
+  "https://www.post.japanpost.jp/service/search/zipcode/download/kogaki/zip/ken_all.zip"
+  "https://www.post.japanpost.jp/zipcode/dl/kogaki/zip/ken_all.zip"
+)
 echo "==> Fetching KEN_ALL postal codes"
-if curl -fL --retry 3 --retry-delay 2 -sS -A "Mozilla/5.0" -o "${work}/ken_all.zip" "${ZIP_URL}" &&
+zip_ok=""
+for url in "${ZIP_URLS[@]}"; do
+  if curl -fL --retry 3 --retry-delay 2 -sS -A "Mozilla/5.0" -o "${work}/ken_all.zip" "${url}"; then
+    zip_ok="yes"
+    break
+  fi
+done
+if [[ -n "${zip_ok}" ]] &&
    "${PYTHON:-python3}" "${ROOT}/scripts/gen_zip_codes.py" "${work}/ken_all.zip" > "${work}/zipcode.tsv"; then
   zip_entries="$(wc -l < "${work}/zipcode.tsv")"
   if [[ "${zip_entries}" -ge 100000 ]]; then
