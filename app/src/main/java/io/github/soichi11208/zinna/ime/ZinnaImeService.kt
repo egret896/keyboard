@@ -1313,14 +1313,12 @@ class ZinnaImeService : InputMethodService() {
         }
         // ↶ ＝ ⌫ で消した文字（全消しも）を戻す。変換をひらがなに戻す機能はやめた
         actions += CandidateStripView.Action("", R.drawable.ic_undo, "消した文字を戻す") { restoreDeleted() }
-        actions += CandidateStripView.Action("", R.drawable.ic_one_hand, ONE_HAND_LABEL) {
-            setOneHand(if (settings.oneHandMode == 0) settings.oneHandLastSide else 0)
-        }
-        // 切り替えスイッチ：右＝趣味ボード、左＝表のボード
+        // 片手モードのボタンは置かない（あA1長押しのメニューから切り替えられる）
+        // 鍵のアイコンだけ：閉じている＝趣味ボード、開いている＝表のボード
         actions += if (settings.hobbyMode) {
-            CandidateStripView.Action("", R.drawable.ic_private_switch_on, HOBBY_ON_LABEL) { toggleHobby() }
+            CandidateStripView.Action("", R.drawable.ic_lock, HOBBY_ON_LABEL) { toggleHobby() }
         } else {
-            CandidateStripView.Action("", R.drawable.ic_private_switch_off, HOBBY_OFF_LABEL) { toggleHobby() }
+            CandidateStripView.Action("", R.drawable.ic_lock_open, HOBBY_OFF_LABEL) { toggleHobby() }
         }
         view.setActions(actions)
     }
