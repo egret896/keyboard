@@ -217,6 +217,11 @@ class ImeSettings(private val context: Context) {
         get() = prefs.getStringSet("hidden_candidates", emptySet())?.toSet() ?: emptySet()
         set(v) { prefs.edit().putStringSet("hidden_candidates", v.toSet()).apply(); bumpRevision() }
 
+    /** 出さない「変換のしかた」（読みの一部 ⇥ 言葉の一部）。HiddenRules を参照。 */
+    var hiddenRules: Set<String>
+        get() = prefs.getStringSet("hidden_rules", emptySet())?.toSet() ?: emptySet()
+        set(v) { prefs.edit().putStringSet("hidden_rules", v.toSet()).apply(); bumpRevision() }
+
     /** 日付・時刻（きょう・いま など）と計算（12*3= など）の候補を出すか。 */
     /** 空白を、かなの画面でも常に半角にする。 */
     var alwaysHalfSpace: Boolean

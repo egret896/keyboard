@@ -1169,7 +1169,13 @@ class ZinnaImeService : InputMethodService() {
             out = calc + out.take(1) + dates + out.drop(1)
             out = out.distinctBy { it.text }
         }
-        return if (hidden.isEmpty()) out else out.filter { it.text !in hidden }
+        if (hidden.isNotEmpty()) out = out.filter { it.text !in hidden }
+        val rules = settings.hiddenRules.mapNotNull(HiddenRules::decode)
+        if (rules.isEmpty()) return out
+        val reading = state.preeditReading
+        val kept = out.filter { c -> rules.none { it.matches(reading, c.text) } }
+        // 全部消えてしまうと打った文字が選べなくなるので、そのときは消さない
+        return kept.ifEmpty { out }
     }
 
     /**
@@ -1203,6 +1209,10 @@ class ZinnaImeService : InputMethodService() {
     /** 候補から削除：その候補を今後出さない（設定の「カスタマイズ」で戻せる）。 */
     private fun hideCandidate(candidate: MozcSession.Candidate) {
         settings.hiddenCandidates = settings.hiddenCandidates + candidate.text
+        // その文だけでなく「変換のしかた」も覚えて、ほかの文でも出さない
+        HiddenRules.derive(lastState?.preeditReading.orEmpty(), candidate.text)?.let {
+            settings.hiddenRules = settings.hiddenRules + it.encode()
+        }
         Toast.makeText(this, "「${candidate.text}」を候補に出さないようにしました（設定で戻せます）", Toast.LENGTH_SHORT).show()
         lastState?.let { state ->
             if (state.candidates.isNotEmpty()) {

@@ -1230,6 +1230,7 @@ private fun HiddenCandidatesCard() {
     val context = LocalContext.current
     val settings = remember { ImeSettings(context) }
     var hidden by remember { mutableStateOf(settings.hiddenCandidates.sorted()) }
+    var rules by remember { mutableStateOf(settings.hiddenRules.sorted()) }
 
     SectionCard("出さないようにした候補") {
         Text("候補を長押し →「候補から削除」で、ここに入ります。「戻す」でまた出るようになります", style = MaterialTheme.typography.bodySmall)
@@ -1242,7 +1243,26 @@ private fun HiddenCandidatesCard() {
                 TextButton(onClick = {
                     settings.hiddenCandidates = settings.hiddenCandidates - word
                     hidden = settings.hiddenCandidates.sorted()
+                    // その候補から作った「変換のしかた」も戻す
+                    settings.hiddenRules = settings.hiddenRules.filterNot { r ->
+                        io.github.soichi11208.zinna.ime.HiddenRules.decode(r)?.let { word.contains(it.word) } == true
+                    }.toSet()
+                    rules = settings.hiddenRules.sorted()
                 }) { Text("戻す") }
+            }
+        }
+        if (rules.isNotEmpty()) {
+            HorizontalDivider()
+            Text("出さない変換のしかた（ほかの文でも出しません）", style = MaterialTheme.typography.bodyMedium)
+            for (r in rules) {
+                val rule = io.github.soichi11208.zinna.ime.HiddenRules.decode(r) ?: continue
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("${rule.reading} → ${rule.word}", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
+                    TextButton(onClick = {
+                        settings.hiddenRules = settings.hiddenRules - r
+                        rules = settings.hiddenRules.sorted()
+                    }) { Text("戻す") }
+                }
             }
         }
     }
