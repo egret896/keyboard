@@ -795,6 +795,8 @@ private val BACKUP_EXTRAS = ProfileBackup.Extras(
     secureFiles = listOf(
         io.github.soichi11208.zinna.ime.LearnedWords.MAIN_FILE,
         io.github.soichi11208.zinna.ime.LearnedWords.HOBBY_FILE,
+        io.github.soichi11208.zinna.ime.LearnedWords.NEXT_MAIN_FILE,
+        io.github.soichi11208.zinna.ime.LearnedWords.NEXT_HOBBY_FILE,
     ),
 )
 
@@ -1311,6 +1313,7 @@ private fun HobbyCard() {
                 Button(onClick = {
                     settings.clearHobbyLearning()
                     io.github.soichi11208.zinna.ime.LearnedWords(context, io.github.soichi11208.zinna.ime.LearnedWords.HOBBY_FILE).clear()
+                    io.github.soichi11208.zinna.ime.LearnedWords(context, io.github.soichi11208.zinna.ime.LearnedWords.NEXT_HOBBY_FILE).clear()
                     learned = 0; confirmClear = false
                 }) { Text("消す") }
                 OutlinedButton(onClick = { confirmClear = false }) { Text("やめる") }
@@ -1329,7 +1332,7 @@ private fun LearnedCard() {
     var confirmClear by remember { mutableStateOf(false) }
     SectionCard("覚えた言葉") {
         Text(
-            "選んだ候補を覚えて、次から先頭に出します（AI変換の候補も覚えます）。プライベートモード中や趣味ボードで打ったものは、ここには入りません",
+            "選んだ候補を覚えて、次から先頭に出します。続けて打った言葉も覚えて、確定したあとに「次に打ちそうな言葉」として出します。プライベートモード中や趣味ボードで打ったものは、ここには入りません",
             style = MaterialTheme.typography.bodySmall,
         )
         Text("覚えた言葉：$learned 語", style = MaterialTheme.typography.bodyMedium)
@@ -1338,7 +1341,11 @@ private fun LearnedCard() {
         } else {
             Text("覚えた言葉を全部消します。元に戻せません", style = MaterialTheme.typography.bodySmall)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = { learnedWords.clear(); learned = 0; confirmClear = false }) { Text("消す") }
+                Button(onClick = {
+                    learnedWords.clear()
+                    io.github.soichi11208.zinna.ime.LearnedWords(context, io.github.soichi11208.zinna.ime.LearnedWords.NEXT_MAIN_FILE).clear()
+                    learned = 0; confirmClear = false
+                }) { Text("消す") }
                 OutlinedButton(onClick = { confirmClear = false }) { Text("やめる") }
             }
         }

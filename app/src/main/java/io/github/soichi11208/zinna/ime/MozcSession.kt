@@ -95,6 +95,8 @@ class MozcSession(context: Context) {
             )
             .setZeroQuerySuggestion(true)
             .setMixedConversion(true)
+            // 絵文字の候補を、変換だけでなく予測でも出す（きんにく → 💪）
+            .setEmojiRewriterCapability(Request.RewriterCapability.ALL_VALUE)
             .setUpdateInputModeFromSurroundingText(false)
             .setAutoPartialSuggestion(true)
             // Upstream's default is 9, which is a page for a desktop candidate window and too few
@@ -185,6 +187,7 @@ class MozcSession(context: Context) {
                         // 関係ない候補が2番目に割り込んできて、かえって邪魔だった。
                         .setUseTypingCorrection(false)
                         .setIncognitoMode(incognito)
+                        .setUseEmojiConversion(true)
                         .setUseKanaModifierInsensitiveConversion(true)
                 )
         )

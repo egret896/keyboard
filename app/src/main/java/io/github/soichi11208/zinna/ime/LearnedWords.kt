@@ -57,6 +57,10 @@ class LearnedWords(context: Context, fileName: String) {
         return (exact + more).distinct()
     }
 
+    /** 読み（ここでは「前の言葉」）がぴったり同じものだけ。続きの予測に使う。 */
+    fun lookupExact(key: String): List<String> =
+        if (key.isEmpty()) emptyList() else list().filter { it.first == key }.map { it.second }.distinct()
+
     fun clear() {
         cache = mutableListOf()
         file.delete()
@@ -66,5 +70,8 @@ class LearnedWords(context: Context, fileName: String) {
         const val LIMIT = 1000
         const val MAIN_FILE = "learned_main.enc"
         const val HOBBY_FILE = "learned_hobby.enc"
+        /** 「この言葉のあとに、この言葉を打った」の組（続きの予測）。 */
+        const val NEXT_MAIN_FILE = "learned_next_main.enc"
+        const val NEXT_HOBBY_FILE = "learned_next_hobby.enc"
     }
 }

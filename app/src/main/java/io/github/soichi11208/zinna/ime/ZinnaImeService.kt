@@ -149,6 +149,8 @@ class ZinnaImeService : InputMethodService() {
     /** 入力欄のカーソル位置（onUpdateSelection で受け取った最新のもの。わからないときは -1）。 */
     private var selStart = -1
     private var selEnd = -1
+    /** 入力中の文字（下線）の始まりの位置。アプリが教えてくれたもの。-1 ＝ わからない。 */
+    private var composeStart = -1
 
     /** What the strip is worth when it is not covering the keyboard. */
     private var collapsedStripHeight = 0
@@ -375,6 +377,9 @@ class ZinnaImeService : InputMethodService() {
         super.onStartInputView(info, restarting)
         learnedMain.reload()
         learnedHobby.reload()
+        nextMain.reload()
+        nextHobby.reload()
+        lastCommitted = null
         forgetDeleted()
         selStart = info?.initialSelStart ?: -1
         selEnd = info?.initialSelEnd ?: -1
@@ -446,6 +451,7 @@ class ZinnaImeService : InputMethodService() {
         clientContextValid = false
         selStart = newSelStart
         selEnd = newSelEnd
+        composeStart = candidatesStart
         // 入力中（下線つき）なのに、カーソルがその外へ動かされた（画面を直接タップした等）。
         // そのままだと次の文字が元の場所に入り、カーソルもそこへ飛んでしまうので、ここで確定する。
         //   今日は|晴れ  ← 入力中「はれ」の外をタップ → 「はれ」を確定してから、新しい場所で入力
@@ -668,7 +674,10 @@ class ZinnaImeService : InputMethodService() {
         val beforeText = ic.getTextBeforeCursor(CLEAR_ALL_MAX_CHARS, 0)?.toString().orEmpty()
         val selectedText = ic.getSelectedText(0)?.toString().orEmpty()
         deletedBuffer.setLength(0)
-        rememberDeleted(beforeText + selectedText)
+        rememberDeleted(
+            beforeText + selectedText,
+            if (selStart >= 0) (minOf(selStart, selEnd) - beforeText.length).coerceAtLeast(0) else -1,
+        )
         if (selectedText.isNotEmpty()) ic.commitText("", 1)
         ic.deleteSurroundingText(beforeText.length, 0)
         ic.endBatchEdit()
@@ -749,6 +758,34 @@ class ZinnaImeService : InputMethodService() {
     private fun handleSymbol(text: String) {
         if (isComposing) render(session.submit())
         currentInputConnection?.commitText(text, 1)
+        lastCommitted = null
+        showEmailDomains()
+    }
+
+    /** 「名前@」まで打ってあれば、続きのドメインを候補に出す（入力中でないとき）。 */
+    private fun showEmailDomains(): Boolean {
+        if (isComposing) return false
+        val before = currentInputConnection?.getTextBeforeCursor(64, 0)?.toString() ?: return false
+        val (partial, domains) = EmailDomains.match(before) ?: return false
+        stripContent = StripContent.CANDIDATES
+        candidateView?.setCandidates(
+            domains.mapIndexed { i, d -> MozcSession.Candidate(EMAIL_ID_BASE - i, d.removePrefix(partial)) }, -1,
+        )
+        return true
+    }
+
+    /** 入力中の文字が「名前@途中」になっていたら、ドメインを足した候補（入力中の文字ごと置きかえる）。 */
+    private fun emailCandidates(preedit: String): List<MozcSession.Candidate> {
+        if (preedit.isEmpty() || preedit.length > 64 || preedit.any { it.code > 0x7E }) return emptyList()
+        val before = if ('@' in preedit) "" else
+            currentInputConnection?.getTextBeforeCursor(64, 0)?.toString().orEmpty().let {
+                // 入力中の文字そのものは、まだ確定していないので含まれていないことがある
+                if (it.endsWith(preedit)) it.dropLast(preedit.length) else it
+            }
+        val (partial, domains) = EmailDomains.match(before + preedit) ?: return emptyList()
+        return domains.mapIndexed { i, d ->
+            MozcSession.Candidate(EMAIL_ID_BASE - 50 - i, preedit + d.removePrefix(partial))
+        }
     }
 
     /**
@@ -799,24 +836,34 @@ class ZinnaImeService : InputMethodService() {
 
     private val deletedBuffer = StringBuilder()
 
-    private fun rememberDeleted(text: String) {
+    /** 消した場所（戻すときはここに入れる）。-1 ＝ わからない。 */
+    private var deletedAt = -1
+
+    private fun rememberDeleted(text: String, at: Int = -1) {
         if (text.isEmpty()) return
+        deletedAt = at
         deletedBuffer.insert(0, text) // 続けて消した文字は前につなげる
         if (deletedBuffer.length > CLEAR_ALL_MAX_CHARS) deletedBuffer.setLength(CLEAR_ALL_MAX_CHARS)
     }
 
-    private fun forgetDeleted() { deletedBuffer.setLength(0) }
+    private fun forgetDeleted() { deletedBuffer.setLength(0); deletedAt = -1 }
 
     private fun restoreDeleted() {
         val text = deletedBuffer.toString()
         if (text.isEmpty()) return
         if (isComposing) render(session.submit())
-        currentInputConnection?.commitText(text, 1)
+        val ic = currentInputConnection ?: return
+        // 消したあとにカーソルを動かしていても、消した場所に戻す
+        if (deletedAt >= 0 && selStart >= 0 && (selStart != deletedAt || selEnd != deletedAt)) {
+            ic.setSelection(deletedAt, deletedAt)
+        }
+        ic.commitText(text, 1)
         forgetDeleted()
         showIdleActions()
     }
 
     private fun handleBackspace() {
+        if (!isComposing) lastCommitted = null
         // Route from the state before sending Backspace. Deleting the final composing character
         // returns an empty Mozc state, but that must not turn the same key into an editor delete.
         val hadComposition = isComposing
@@ -833,16 +880,19 @@ class ZinnaImeService : InputMethodService() {
                 EditorDeletion.NONE -> Unit
                 // Committing empty text is what replaces a selection; deleting around it would not.
                 EditorDeletion.SELECTION -> {
-                    rememberDeleted(selected.toString())
+                    rememberDeleted(selected.toString(), if (selStart >= 0) minOf(selStart, selEnd) else -1)
                     ic.commitText("", 1)
+                    if (selStart >= 0) { selStart = minOf(selStart, selEnd); selEnd = selStart }
                 }
                 EditorDeletion.PRECEDING_CHARACTER -> {
                     // 見た目の1文字をまるごと消す（絵文字は部品が何個もあるので、半分だけ消すと「�」になる）。
                     // 消した文字は覚えておく（すぐ「戻す」で戻せるように）。
                     val before = ic.getTextBeforeCursor(GRAPHEME_LOOK_CHARS, 0)?.toString().orEmpty()
                     val ch = before.takeLast(Graphemes.lastLength(before))
-                    rememberDeleted(ch)
+                    rememberDeleted(ch, if (selStart >= 0) (selStart - ch.length).coerceAtLeast(0) else -1)
                     ic.deleteSurroundingText(ch.length.coerceAtLeast(1), 0)
+                    // アプリからの知らせを待たずに、今の位置を先に合わせておく（続けて消したとき用）
+                    if (selStart >= 0) { selStart = (selStart - ch.length).coerceAtLeast(0); selEnd = selStart }
                 }
             }
         }
@@ -896,6 +946,7 @@ class ZinnaImeService : InputMethodService() {
     }
 
     private fun handleCursorMove(delta: Int) {
+        lastCommitted = null
         session.stopKeyToggling()
         val special = if (delta < 0) KeyEvent.SpecialKey.LEFT else KeyEvent.SpecialKey.RIGHT
         val state = session.sendSpecialKey(special)
@@ -981,10 +1032,16 @@ class ZinnaImeService : InputMethodService() {
      */
     private fun placeComposingCaret(ic: InputConnection, state: MozcSession.State) {
         if (state.preedit.isEmpty() || state.preeditCursor >= state.preedit.length) return
-        val extracted = ic.getExtractedText(ExtractedTextRequest(), 0) ?: return
+        val extracted = ic.getExtractedText(ExtractedTextRequest(), 0)
         // setComposingText left the caret just past the composition, which is the only fixed point
         // we can measure its start from — the editor never tells us where it put the span.
-        val start = extracted.startOffset + extracted.selectionStart - state.preedit.length
+        // 中身を教えてくれないアプリでは、アプリが知らせてくれた「下線の始まり」を使う。
+        // （前はここであきらめていたので、◀▶で途中に入れても、カーソルが右端に飛んでいた）
+        val start = if (extracted != null) {
+            extracted.startOffset + extracted.selectionStart - state.preedit.length
+        } else {
+            composeStart
+        }
         if (start < 0) return
         val target = start + state.preeditCursor
         ic.setSelection(target, target)
@@ -1003,6 +1060,8 @@ class ZinnaImeService : InputMethodService() {
         if (state.committedText.isNotEmpty() && !state.hasComposition && hadComposition) {
             learnConfirmed(state.committedText)
             learnWord(lastState?.preeditReading.orEmpty(), state.committedText)
+        } else if (state.committedText.isNotEmpty() && !hadComposition) {
+            learnNext(state.committedText)
         }
         val removeOldEditorComposition =
             BackspaceRouting.shouldRemoveOldEditorComposition(
@@ -1034,9 +1093,17 @@ class ZinnaImeService : InputMethodService() {
         isComposing = state.hasComposition
         lastState = state
 
-        if (state.candidates.isEmpty()) {
+        // 確定した直後：前に続けて打った言葉（続きの予測）＋ mozc の予測
+        val justCommitted = !state.hasComposition && state.committedText.isNotEmpty()
+        val next = if (justCommitted) nextCandidates() else emptyList()
+        if (state.candidates.isEmpty() && next.isEmpty()) {
             candidateView?.expanded = false
             showIdleActions()
+        } else if (!state.hasComposition) {
+            stripContent = StripContent.CANDIDATES
+            val hidden = settings.hiddenCandidates
+            val shown = (next + state.candidates).distinctBy { it.text }.filter { it.text !in hidden }
+            if (shown.isEmpty()) showIdleActions() else candidateView?.setCandidates(shown, -1)
         } else {
             stripContent = StripContent.CANDIDATES
             val shown = decorate(zenzaiBaseCandidates(state), state)
@@ -1086,6 +1153,9 @@ class ZinnaImeService : InputMethodService() {
         val hidden = settings.hiddenCandidates
         // 覚えた言葉を先頭に（趣味ボードで覚えたものは趣味ボードのときだけ）
         var out = (learnedCandidates(state.preeditReading) + list).distinctBy { it.text }
+        // メールアドレスを打っているなら、@のあとのドメインを先頭に
+        val email = emailCandidates(state.preedit)
+        if (email.isNotEmpty()) out = (email + out).distinctBy { it.text }
         // カタカナ語なら英語の綴りを、いちばん目の候補のすぐ後ろに
         if (settings.englishCandidates) {
             val english = EnglishCandidates.lookup(state.preeditReading)
@@ -1199,11 +1269,22 @@ class ZinnaImeService : InputMethodService() {
             render(session.selectCandidate(candidate.id))
             return
         }
+        val wasComposing = isComposing
         session.revert()
         isComposing = false
         currentInputConnection?.commitText(candidate.text, 1)
         lastTableKey = null
-        showIdleActions()
+        if (!wasComposing && candidate.id <= EMAIL_ID_BASE && candidate.id > EMAIL_ID_BASE - 100) {
+            // メールのドメインを入れたあとは、続きの予測は出さない
+            lastCommitted = null
+            showIdleActions()
+            return
+        }
+        if (!wasComposing) learnNext(candidate.text)
+        // 続けて、その言葉のあとの予測を出す
+        val next = nextCandidates()
+        if (next.isEmpty()) showIdleActions()
+        else { stripContent = StripContent.CANDIDATES; candidateView?.setCandidates(next, -1) }
     }
 
     /**
@@ -1334,6 +1415,29 @@ class ZinnaImeService : InputMethodService() {
     }
 
     private val learnedMain by lazy { LearnedWords(this, LearnedWords.MAIN_FILE) }
+    private val nextMain by lazy { LearnedWords(this, LearnedWords.NEXT_MAIN_FILE) }
+    private val nextHobby by lazy { LearnedWords(this, LearnedWords.NEXT_HOBBY_FILE) }
+
+    /** 直前に確定した言葉（続きの予測に使う）。カーソルを動かしたり消したりしたら忘れる。 */
+    private var lastCommitted: String? = null
+
+    /** 「前の言葉 → 今の言葉」を覚える（続きの予測）。 */
+    private fun learnNext(word: String) {
+        val prev = lastCommitted
+        lastCommitted = word
+        if (prev == null || !canLearn()) return
+        (if (settings.hobbyMode) nextHobby else nextMain).remember(prev, word)
+    }
+
+    /** 直前の言葉のあとに、前に打った言葉（続きの予測）。趣味ボードは趣味 → 表 の順。 */
+    private fun nextCandidates(): List<MozcSession.Candidate> {
+        val prev = lastCommitted ?: return emptyList()
+        val words = if (settings.hobbyMode) nextHobby.lookupExact(prev) + nextMain.lookupExact(prev)
+        else nextMain.lookupExact(prev)
+        val hidden = settings.hiddenCandidates
+        return words.distinct().filter { it !in hidden }.take(8)
+            .mapIndexed { i, w -> MozcSession.Candidate(NEXT_ID_BASE - i, w) }
+    }
     private val learnedHobby by lazy {
         LearnedWords(this, LearnedWords.HOBBY_FILE).also { hobby ->
             // 前の版は趣味ボードの言葉を設定に平文で置いていたので、暗号化した方へ移す
@@ -1358,6 +1462,7 @@ class ZinnaImeService : InputMethodService() {
      * AI変換の候補を選んだときも、ここで覚える（mozc は覚えられないので）。
      */
     private fun learnWord(reading: String, word: String) {
+        learnNext(word)
         if (!canLearn()) return
         (if (settings.hobbyMode) learnedHobby else learnedMain).remember(reading, word)
     }
@@ -1439,7 +1544,7 @@ class ZinnaImeService : InputMethodService() {
                 },
                 KeyboardMenuView.Item({ "⌨ 戻る" }) { closeKeyboardMenu() },
             ),
-        ))
+        ), submitComposition = false)
     }
 
     private fun openKeyboardMenu() {
@@ -1572,6 +1677,8 @@ class ZinnaImeService : InputMethodService() {
         private const val ONE_HAND_LABEL = "片手モード"
         private const val UNDO_LABEL = "元に戻す"
         private const val PRIVATE_OFF_LABEL = "プライベートモード：オフ"
+        private const val NEXT_ID_BASE = -7000
+        private const val EMAIL_ID_BASE = -6000
         private const val HOBBY_DEFAULT_BG = 0xFF2A1640.toInt()
         private const val HOBBY_OFF_LABEL = "趣味ボードに切り替える"
         private const val HOBBY_ON_LABEL = "表のボードに戻す"
