@@ -68,14 +68,36 @@ git -C "${work}/ja-en" checkout -q FETCH_HEAD
 # dictionary, so it also answers 黒 with "black" and そ with the definition of the solfa syllable —
 # which surfaces as English prose in the middle of ordinary Japanese input. See the filter script.
 merged="${work}/merged.txt"
-# LC_ALL is pinned because awk resolves a character range like [ぁ-ゖ] through the locale's
-# collation order, so the same input yields a different set of readings depending on what LANG
-# happens to be — measured at 26,828 entries under ja_JP.UTF-8 and 24,621 under C.UTF-8. A build
-# whose dictionary depends on the builder's locale is not reproducible, which is the whole point
-# of pinning the sources in the first place.
+# The katakana/hiragana handling is done in Python rather than with an awk range like [ぁ-ゖ]:
+# awk resolves such a range through the locale (mawk even byte-wise), so the same input gave
+# 26,828 entries under ja_JP.UTF-8 and 24,621 under C.UTF-8.
+raw="${work}/raw.txt"
 find "${work}" -path "*Google-ime-jp-カタカナ英語辞典*" -name "*.txt" -exec cat {} + 2>/dev/null |
-  LC_ALL=C.UTF-8 awk -F"\t" 'NF >= 3 && $1 ~ /^[ぁ-ゖー]+$/ && $2 != "" {print $1 "\t" $2 "\t" $3}' |
-  "${PYTHON:-python3}" "${ROOT}/scripts/filter_katakana_english.py" > "${merged}"
+  "${PYTHON:-python3}" "${ROOT}/scripts/extract_jmdict_english.py" --tsv > "${raw}"
+
+# JMdict (EDRDG) — the dictionary EDICT grew into, and far larger: the snapshot KEINOS used is
+# missing everyday loanwords such as デザイン, テスト and パスワード. EDRDG publishes it fresh
+# every day with no versioned archive, so it cannot be pinned to a hash like the others; it is
+# optional instead. If neither mirror answers, the build carries on with the older list alone.
+JMDICT_URLS=(
+  "http://ftp.edrdg.org/pub/Nihongo/JMdict_e.gz"
+  "http://ftp.monash.edu/pub/nihongo/JMdict_e.gz"
+)
+echo "==> Fetching JMdict"
+jmdict_ok=""
+for url in "${JMDICT_URLS[@]}"; do
+  if curl -fL --retry 3 --retry-delay 2 -sS -o "${work}/JMdict_e.gz" "${url}"; then
+    if "${PYTHON:-python3}" "${ROOT}/scripts/extract_jmdict_english.py" "${work}/JMdict_e.gz" > "${work}/jmdict.txt"; then
+      cat "${work}/jmdict.txt" >> "${raw}"
+      echo "    $(wc -l < "${work}/jmdict.txt") JMdict loanword glosses"
+      jmdict_ok="yes"
+      break
+    fi
+  fi
+done
+[[ -n "${jmdict_ok}" ]] || echo "warning: JMdict unavailable; using the KEINOS list only" >&2
+
+"${PYTHON:-python3}" "${ROOT}/scripts/filter_katakana_english.py" < "${raw}" > "${merged}"
 
 ja_en_entries="$(wc -l < "${merged}")"
 if [[ "${ja_en_entries}" -lt 10000 ]]; then
@@ -115,3 +137,22 @@ if [[ "${jawiki_entries}" -lt 500000 ]]; then
 fi
 install -m 644 "${jawiki}" "${DEST}/${JAWIKI_FILE}"
 echo "    ${jawiki_entries} entries -> ${DEST}/${JAWIKI_FILE}"
+
+# Japan Post KEN_ALL — every postal code and the address it stands for, for the 郵便番号 → 住所
+# candidate. Shipped to the keyboard as a sorted `code<TAB>address` asset and looked up on the
+# phone; the keyboard itself never goes online. Japan Post replaces the file every month under the
+# same name, so like JMdict it cannot be pinned, and it is optional: no file means no candidate.
+ZIP_URL="https://www.post.japanpost.jp/zipcode/dl/kogaki/zip/ken_all.zip"
+echo "==> Fetching KEN_ALL postal codes"
+if curl -fL --retry 3 --retry-delay 2 -sS -A "Mozilla/5.0" -o "${work}/ken_all.zip" "${ZIP_URL}" &&
+   "${PYTHON:-python3}" "${ROOT}/scripts/gen_zip_codes.py" "${work}/ken_all.zip" > "${work}/zipcode.tsv"; then
+  zip_entries="$(wc -l < "${work}/zipcode.tsv")"
+  if [[ "${zip_entries}" -ge 100000 ]]; then
+    install -m 644 "${work}/zipcode.tsv" "${ROOT}/app/src/main/assets/dict/zipcode.tsv"
+    echo "    ${zip_entries} postal codes -> app/src/main/assets/dict/zipcode.tsv"
+  else
+    echo "warning: only ${zip_entries} postal codes; leaving them out" >&2
+  fi
+else
+  echo "warning: KEN_ALL unavailable; postal-code candidates are left out" >&2
+fi

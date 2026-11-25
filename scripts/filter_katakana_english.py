@@ -110,6 +110,10 @@ def skeleton_en(word):
     s = re.sub(r"[^a-z]", "", word.lower())
     if not s:
         return ""
+    # English spellings that do not say what they look like.
+    s = re.sub(r"^sch", "sk", s)            # schedule, school -> sukejuuru, sukuuru
+    s = re.sub(r"^u(?=[nst][aeiouy])", "yu", s)  # user, unit, union -> yuuzaa, yunitto
+    s = re.sub(r"d(?=ule$)", "j", s)        # schedule, module -> -juuru
     s = s.replace("ph", "f").replace("th", "s").replace("sh", "s").replace("ch", "t")
     s = s.replace("ck", "k").replace("qu", "k").replace("x", "ks")
     s = re.sub(r"c(?=[eiy])", "s", s)

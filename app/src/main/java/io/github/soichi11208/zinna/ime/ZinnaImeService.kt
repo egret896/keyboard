@@ -178,6 +178,8 @@ class ZinnaImeService : InputMethodService() {
         repository = LayoutRepository(this)
         settings = ImeSettings(this)
         EnglishCandidates.preload(this)
+        SymbolReadings.preload(this)
+        ZipCodes.preload(this)
         session = ConversionSession(this)
         zenzai = ZenzaiEngine(this) {
             Toast.makeText(this, "AI変換でエラーが起きました。ふつうの変換はそのまま使えます", Toast.LENGTH_LONG).show()
@@ -1165,8 +1167,18 @@ class ZinnaImeService : InputMethodService() {
         if (settings.smartCandidates) {
             val calc = SmartCandidates.calculate(state.preedit).mapIndexed { i, t -> MozcSession.Candidate(-2000 - i, t) }
             val dates = SmartCandidates.dateTime(state.preeditReading).mapIndexed { i, t -> MozcSession.Candidate(-3000 - i, t) }
-            // 計算はいちばん前、日付は1つめの候補（今日 など）のすぐ後ろ
-            out = calc + out.take(1) + dates + out.drop(1)
+            // 郵便番号→住所、数字→漢数字・金額、日付→曜日つき、5きろ→5km
+            val extra = (ZipCodes.lookup(state.preedit) +
+                SmartCandidates.dateWithWeekday(state.preedit) +
+                SmartCandidates.units(state.preedit) +
+                SmartCandidates.numbers(state.preedit))
+                .mapIndexed { i, t -> MozcSession.Candidate(-8000 - i, t) }
+            // 記号は2つめの候補のあと（「ほし」なら 星・☆ … の順）
+            val symbols = SymbolReadings.lookup(state.preeditReading)
+                .mapIndexed { i, t -> MozcSession.Candidate(-9000 - i, t) }
+            // 計算はいちばん前、日付などは1つめの候補（今日 など）のすぐ後ろ
+            out = calc + out.take(1) + dates + extra + out.drop(1)
+            if (symbols.isNotEmpty()) out = out.take(2) + symbols + out.drop(2)
             out = out.distinctBy { it.text }
         }
         if (hidden.isNotEmpty()) out = out.filter { it.text !in hidden }
