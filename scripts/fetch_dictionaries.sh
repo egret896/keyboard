@@ -81,25 +81,37 @@ find "${work}" -path "*Google-ime-jp-カタカナ英語辞典*" -name "*.txt" -e
 # optional instead. If neither mirror answers, the build carries on with the older list alone.
 JMDICT_URLS=(
   "http://ftp.edrdg.org/pub/Nihongo/JMdict_e.gz"
-  "http://ftp.monash.edu/pub/nihongo/JMdict_e.gz"
 )
 echo "==> Fetching JMdict"
 jmdict_ok=""
-for url in "${JMDICT_URLS[@]}"; do
-  if curl -fL --retry 3 --retry-delay 2 -sS -o "${work}/JMdict_e.gz" "${url}"; then
-    if "${PYTHON:-python3}" "${ROOT}/scripts/extract_jmdict_english.py" "${work}/JMdict_e.gz" > "${work}/jmdict.txt"; then
-      cat "${work}/jmdict.txt" >> "${raw}"
-      echo "    $(wc -l < "${work}/jmdict.txt") JMdict loanword glosses"
-      jmdict_ok="yes"
-      # 英訳モードの辞書（猫 → cat）。APKには圧縮せずに入れ、キーボードが mmap で引く
-      mkdir -p "${ROOT}/app/src/main/assets/dict"
-      "${PYTHON:-python3}" "${ROOT}/scripts/gen_translate_dict.py" "${work}/JMdict_e.gz" \
-        > "${ROOT}/app/src/main/assets/dict/translate.jaen"
-      echo "    $(wc -l < "${ROOT}/app/src/main/assets/dict/translate.jaen") translation headwords"
+use_jmdict() {
+  local file="$1"
+  "${PYTHON:-python3}" "${ROOT}/scripts/extract_jmdict_english.py" "${file}" > "${work}/jmdict.txt" || return 1
+  cat "${work}/jmdict.txt" >> "${raw}"
+  echo "    $(wc -l < "${work}/jmdict.txt") JMdict loanword glosses"
+  # 英訳モードの辞書（猫 → cat）。APKには圧縮せずに入れ、キーボードが mmap で引く
+  mkdir -p "${ROOT}/app/src/main/assets/dict"
+  "${PYTHON:-python3}" "${ROOT}/scripts/gen_translate_dict.py" "${file}" \
+    > "${ROOT}/app/src/main/assets/dict/translate.jaen" || return 1
+  echo "    $(wc -l < "${ROOT}/app/src/main/assets/dict/translate.jaen") translation headwords"
+  jmdict_ok="yes"
+}
+# First choice: the same data as JSON from scriptin/jmdict-simplified's latest GitHub release.
+# EDRDG's own server has been seen refusing connections from CI for minutes on end.
+mkdir -p "${work}/jmdict-json"
+if command -v gh > /dev/null &&
+   gh release download --repo scriptin/jmdict-simplified --pattern 'jmdict-eng-[0-9]*.json.zip' \
+     --dir "${work}/jmdict-json" 2> /dev/null; then
+  use_jmdict "$(ls "${work}"/jmdict-json/*.json.zip | head -1)" || true
+fi
+if [[ -z "${jmdict_ok}" ]]; then
+  for url in "${JMDICT_URLS[@]}"; do
+    if curl -fL --connect-timeout 20 --retry 2 --retry-delay 2 -sS -o "${work}/JMdict_e.gz" "${url}" &&
+       use_jmdict "${work}/JMdict_e.gz"; then
       break
     fi
-  fi
-done
+  done
+fi
 [[ -n "${jmdict_ok}" ]] || echo "warning: JMdict unavailable; using the KEINOS list only" >&2
 
 "${PYTHON:-python3}" "${ROOT}/scripts/filter_katakana_english.py" < "${raw}" > "${merged}"

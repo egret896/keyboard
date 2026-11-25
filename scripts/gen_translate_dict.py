@@ -13,10 +13,10 @@ Glosses are trimmed to what is worth typing: parenthesised notes go, the "to " o
 listed first under a shared key, so かみ offers "paper" and "god" before rarer senses.
 """
 
-import gzip
 import re
 import sys
-import xml.etree.ElementTree as ET
+
+import jmdict_source
 
 PAREN = re.compile(r"\s*\([^)]*\)\s*")
 PER_ENTRY = 3
@@ -40,30 +40,22 @@ def clean(gloss):
 
 def main():
     keys = {}  # key -> [(priority, order, [glosses])]
-    order = 0
-    opener = gzip.open if sys.argv[1].endswith(".gz") else open
-    with opener(sys.argv[1], "rb") as f:
-        for _, e in ET.iterparse(f, events=("end",)):
-            if e.tag != "entry":
-                continue
-            glosses = []
-            for sense in e.iter("sense"):
-                for g in sense.iter("gloss"):
-                    lang = g.get("{http://www.w3.org/XML/1998/namespace}lang", "eng")
-                    c = clean(g.text or "") if lang == "eng" else None
-                    if c and c not in glosses:
-                        glosses.append(c)
-                        break  # one gloss per sense: different senses are more useful than synonyms
-                if len(glosses) >= PER_ENTRY:
+    for order, e in enumerate(jmdict_source.entries(sys.argv[1])):
+        glosses = []
+        for sense in e["senses"]:
+            # one gloss per sense: different senses are more useful than synonyms
+            for g in sense:
+                c = clean(g)
+                if c and c not in glosses:
+                    glosses.append(c)
                     break
-            if glosses:
-                common = any(True for t in ("ke_pri", "re_pri") for _ in e.iter(t))
-                forms = [k.text for k in e.iter("keb") if k.text]
-                forms += [to_hiragana(r.text) for r in e.iter("reb") if r.text]
-                for form in dict.fromkeys(forms):
-                    keys.setdefault(form, []).append((0 if common else 1, order, glosses))
-                order += 1
-            e.clear()
+            if len(glosses) >= PER_ENTRY:
+                break
+        if not glosses:
+            continue
+        forms = e["kanji"] + [to_hiragana(r) for r in e["kana"]]
+        for form in dict.fromkeys(forms):
+            keys.setdefault(form, []).append((0 if e["common"] else 1, order, glosses))
 
     lines = []
     for key, entries in keys.items():

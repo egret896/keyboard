@@ -68,6 +68,9 @@ jobs:
 
       - name: 辞書を取ってくる
         run: ./scripts/fetch_dictionaries.sh
+        env:
+          # JMdict を GitHub のリリース（jmdict-simplified）から取るため
+          GH_TOKEN: ${{ github.token }}
 
       - name: bazelisk（ビルド道具）を入れる
         run: |
