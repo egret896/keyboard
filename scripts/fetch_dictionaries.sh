@@ -91,6 +91,11 @@ for url in "${JMDICT_URLS[@]}"; do
       cat "${work}/jmdict.txt" >> "${raw}"
       echo "    $(wc -l < "${work}/jmdict.txt") JMdict loanword glosses"
       jmdict_ok="yes"
+      # 英訳モードの辞書（猫 → cat）。APKには圧縮せずに入れ、キーボードが mmap で引く
+      mkdir -p "${ROOT}/app/src/main/assets/dict"
+      "${PYTHON:-python3}" "${ROOT}/scripts/gen_translate_dict.py" "${work}/JMdict_e.gz" \
+        > "${ROOT}/app/src/main/assets/dict/translate.jaen"
+      echo "    $(wc -l < "${ROOT}/app/src/main/assets/dict/translate.jaen") translation headwords"
       break
     fi
   fi

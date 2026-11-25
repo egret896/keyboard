@@ -93,6 +93,8 @@ class ZinnaImeService : InputMethodService() {
      * decide between 確定 and the editor's action *before* it submits and destroys the evidence.
      */
     private var isComposing = false
+    /** 英訳モード（候補バーの英訳ボタン）。候補を選ぶか、入力が終わると元に戻る。 */
+    private var translateMode = false
 
     /** [ImeSettings.revision] the current input view was built from. */
     private var builtFromRevision = Int.MIN_VALUE
@@ -252,6 +254,7 @@ class ZinnaImeService : InputMethodService() {
             theme = this@ZinnaImeService.theme
             listener = CandidateStripView.OnCandidateSelectedListener(::onCandidateSelected)
             longPressListener = ::openCandidateMenu
+            candidateIcon = { c -> if (c.id == TRANSLATE_ID) R.drawable.ic_translate else 0 }
             twoLines = settings.candidateTwoLines
             // Expanding covers the keyboard rather than squeezing it: a two-row keyboard is not
             // usable, and there is nothing to type while reading the list anyway.
@@ -484,6 +487,7 @@ class ZinnaImeService : InputMethodService() {
     }
 
     override fun onFinishInput() {
+        translateMode = false
         super.onFinishInput()
         toggleTimeout.cancel()
         // mozc が覚えたことを、すぐファイルに書く（アプリが止められても消えないように）
@@ -1094,6 +1098,7 @@ class ZinnaImeService : InputMethodService() {
 
         isComposing = state.hasComposition
         lastState = state
+        if (!state.hasComposition) translateMode = false
 
         // 確定した直後：前に続けて打った言葉（続きの予測）＋ mozc の予測
         val justCommitted = !state.hasComposition && state.committedText.isNotEmpty()
@@ -1108,11 +1113,9 @@ class ZinnaImeService : InputMethodService() {
             if (shown.isEmpty()) showIdleActions() else candidateView?.setCandidates(shown, -1)
         } else {
             stripContent = StripContent.CANDIDATES
-            val shown = decorate(zenzaiBaseCandidates(state), state)
-            val focusedText = state.candidates.getOrNull(state.focusedCandidateIndex)?.text
-            candidateView?.setCandidates(shown, if (focusedText == null) -1 else shown.indexOfFirst { it.text == focusedText })
+            showComposingCandidates(state)
         }
-        requestZenzai(state)
+        if (!translateMode) requestZenzai(state)
     }
 
     private fun cancelZenzai() {
@@ -1137,13 +1140,53 @@ class ZinnaImeService : InputMethodService() {
             if (lastState !== state || !isComposing) return@request
             zenzaiCandidate = candidate
             if (stripContent == StripContent.CLIPBOARD) return@request
-            val candidates = decorate(ZenzaiConversion.candidates(base, candidate), state)
+            if (translateMode) return@request
+            val candidates = withTranslateButton(decorate(ZenzaiConversion.candidates(base, candidate), state))
             stripContent = StripContent.CANDIDATES
             // AIの候補には色を付けない（後から出てくるので目立ちすぎる）。
             // 変換キーで候補を選んでいる最中なら、その候補の色だけそのまま残す。
             val focusedText = base.getOrNull(state.focusedCandidateIndex)?.text
             candidateView?.setCandidates(candidates, candidates.indexOfFirst { it.text == focusedText && focusedText != null })
         }
+    }
+
+    /** 入力中の候補を出す。英訳モードなら英訳を、そうでなければふつうの候補を。 */
+    private fun showComposingCandidates(state: MozcSession.State) {
+        if (translateMode) {
+            val english = translations(state)
+            val shown = listOf(MozcSession.Candidate(TRANSLATE_ID, "")) + english.ifEmpty {
+                listOf(MozcSession.Candidate(TRANSLATE_NONE_ID, "英訳が見つかりません"))
+            }
+            // 英訳ボタンを「押されている色」にして、モード中だとわかるように
+            candidateView?.setCandidates(shown, 0)
+            return
+        }
+        val shown = withTranslateButton(decorate(zenzaiBaseCandidates(state), state))
+        val focusedText = state.candidates.getOrNull(state.focusedCandidateIndex)?.text
+        candidateView?.setCandidates(shown, if (focusedText == null) -1 else shown.indexOfFirst { it.text == focusedText })
+    }
+
+    /** 英訳ボタンを候補のいちばん左に置く（設定でOFFにできる）。 */
+    private fun withTranslateButton(list: List<MozcSession.Candidate>): List<MozcSession.Candidate> =
+        if (settings.translateButton && list.isNotEmpty()) listOf(MozcSession.Candidate(TRANSLATE_ID, "")) + list else list
+
+    /**
+     * 英訳の候補：ふつうの変換候補（猫・寝子 …）とよみ（ねこ）を辞書で引いて、英語を集める。
+     * カタカナ語なら英語の綴り（でざいん → design）も足す。
+     */
+    private fun translations(state: MozcSession.State): List<MozcSession.Candidate> {
+        val words = LinkedHashSet<String>()
+        for (c in state.candidates.take(6)) words += Translator.lookup(this, c.text)
+        words += Translator.lookup(this, state.preeditReading)
+        words += EnglishCandidates.lookup(state.preeditReading)
+        return words.take(15).mapIndexed { i, t -> MozcSession.Candidate(TRANSLATE_ID_BASE - i, t) }
+    }
+
+    /** 英訳ボタン：英訳モードを入れたり切ったりして、候補を出し直す。 */
+    private fun toggleTranslate() {
+        translateMode = !translateMode
+        if (translateMode) cancelZenzai()
+        lastState?.takeIf { it.hasComposition }?.let { showComposingCandidates(it) }
     }
 
     /**
@@ -1195,6 +1238,7 @@ class ZinnaImeService : InputMethodService() {
      * 入力中の文字は確定せずにそのまま残す（戻るを押せば続きを打てる）。
      */
     private fun openCandidateMenu(candidate: MozcSession.Candidate) {
+        if (candidate.id == TRANSLATE_ID || candidate.id == TRANSLATE_NONE_ID) return
         val reading = lastState?.preeditReading.orEmpty()
         val word = candidate.text.take(100)
         showMenu(listOf(
@@ -1227,10 +1271,7 @@ class ZinnaImeService : InputMethodService() {
         }
         Toast.makeText(this, "「${candidate.text}」を候補に出さないようにしました（設定で戻せます）", Toast.LENGTH_SHORT).show()
         lastState?.let { state ->
-            if (state.candidates.isNotEmpty()) {
-                val shown = decorate(zenzaiBaseCandidates(state), state)
-                candidateView?.setCandidates(shown, -1)
-            }
+            if (state.candidates.isNotEmpty()) showComposingCandidates(state)
         }
     }
 
@@ -1280,8 +1321,13 @@ class ZinnaImeService : InputMethodService() {
      * finish what it was composing.
      */
     private fun onCandidateSelected(candidate: MozcSession.Candidate) {
+        if (candidate.id == TRANSLATE_ID) { toggleTranslate(); return }
+        if (candidate.id == TRANSLATE_NONE_ID) return
+        val translated = candidate.id <= TRANSLATE_ID_BASE && candidate.id > TRANSLATE_ID_BASE - 100
+        translateMode = false
         forgetDeleted()
-        if (candidate.id < 0 && isComposing) {
+        // 英訳は覚えない（覚えると、ふつうの変換にも英語が出てくるようになるので）
+        if (candidate.id < 0 && isComposing && !translated) {
             learnConfirmed(candidate.text)
             learnWord(lastState?.preeditReading.orEmpty(), candidate.text)
         }
@@ -1698,6 +1744,9 @@ class ZinnaImeService : InputMethodService() {
         private const val UNDO_LABEL = "元に戻す"
         private const val PRIVATE_OFF_LABEL = "プライベートモード：オフ"
         private const val NEXT_ID_BASE = -7000
+        private const val TRANSLATE_ID = -10000
+        private const val TRANSLATE_NONE_ID = -10001
+        private const val TRANSLATE_ID_BASE = -11000
         private const val EMAIL_ID_BASE = -6000
         private const val HOBBY_DEFAULT_BG = 0xFF2A1640.toInt()
         private const val HOBBY_OFF_LABEL = "趣味ボードに切り替える"

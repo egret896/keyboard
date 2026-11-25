@@ -233,6 +233,11 @@ class ImeSettings(private val context: Context) {
         get() = prefs.getBoolean("english_candidates", true)
         set(v) { prefs.edit().putBoolean("english_candidates", v).apply() }
 
+    /** 入力中、候補バーのいちばん左に英訳ボタンを出す。 */
+    var translateButton: Boolean
+        get() = prefs.getBoolean("translate_button", true)
+        set(v) { prefs.edit().putBoolean("translate_button", v).apply() }
+
     var smartCandidates: Boolean
         get() = prefs.getBoolean("smart_candidates", true)
         set(v) { prefs.edit().putBoolean("smart_candidates", v).apply(); bumpRevision() }

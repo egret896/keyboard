@@ -393,6 +393,7 @@ private fun CandidateCard() {
     var twoLines by remember { mutableStateOf(settings.candidateTwoLines) }
     var smart by remember { mutableStateOf(settings.smartCandidates) }
     var english by remember { mutableStateOf(settings.englishCandidates) }
+    var translate by remember { mutableStateOf(settings.translateButton) }
 
     SectionCard("予測変換") {
         SettingSwitch(
@@ -404,8 +405,8 @@ private fun CandidateCard() {
         HorizontalDivider()
 
         SettingSwitch(
-            title = "日付・時刻と計算の候補",
-            body = "「きょう」で 2026/11/17、「いま」で 10:25、「12*3=」で 36 のように候補に出します",
+            title = "便利な候補（日付・計算・数字・郵便番号・単位・記号）",
+            body = "「きょう」で 2026/11/17、「12*3=」で 36、「12000」で 一万二千・¥12,000、「1000001」で 東京都千代田区千代田、「5きろ」で 5km、「やじるし」で → のように候補に出します",
             checked = smart,
         ) { smart = it; settings.smartCandidates = it }
 
@@ -413,9 +414,17 @@ private fun CandidateCard() {
 
         SettingSwitch(
             title = "英語の候補",
-            body = "カタカナ語を打つと、英語の綴りも候補に出します（あびりてぃ → ability、みーてぃんぐ → meeting）。約2万5千語",
+            body = "カタカナ語を打つと、英語の綴りも候補に出します（あびりてぃ → ability、みーてぃんぐ → meeting）。約5万6千語",
             checked = english,
         ) { english = it; settings.englishCandidates = it }
+
+        HorizontalDivider()
+
+        SettingSwitch(
+            title = "英訳ボタン",
+            body = "入力中、候補バーのいちばん左に🌐を出します。押すと候補が英訳になります（ねこ → cat）。単語の辞書なので、文章はまとめて訳せません",
+            checked = translate,
+        ) { translate = it; settings.translateButton = it }
     }
 }
 

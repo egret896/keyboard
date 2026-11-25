@@ -311,6 +311,9 @@ class CandidateStripView(context: Context) : FrameLayout(context) {
      * Each property is written only when it actually differs: TextView.setText and setBackground
      * invalidate unconditionally, so assigning the same value still costs a layout pass.
      */
+    /** 候補をアイコンで描くときのアイコン（0 ならふつうの文字の候補）。 */
+    var candidateIcon: ((MozcSession.Candidate) -> Int)? = null
+
     fun setCandidates(candidates: List<MozcSession.Candidate>, focusedIndex: Int) {
         showingCandidates = candidates.isNotEmpty()
         detachTrailing()
@@ -332,8 +335,19 @@ class CandidateStripView(context: Context) : FrameLayout(context) {
             styleBlock(view, false)
             view.tag = candidate
             if (view.text != candidate.text) view.text = candidate.text
-            // A chip reused from the idle actions still has their icon attached.
-            if (view.getTag(R.id.chip_icon) != 0) {
+            val icon = candidateIcon?.invoke(candidate) ?: 0
+            if (icon != 0) {
+                // アイコンだけの候補（英訳ボタン）
+                if (view.getTag(R.id.chip_icon) != icon) {
+                    view.setTag(R.id.chip_icon, icon)
+                    view.setCompoundDrawablesRelativeWithIntrinsicBounds(icon, 0, 0, 0)
+                    view.compoundDrawablePadding = 0
+                    val pad = (14 * resources.displayMetrics.density).toInt()
+                    view.setPadding(pad, view.paddingTop, pad, view.paddingBottom)
+                    view.contentDescription = "英訳"
+                }
+            } else if (view.getTag(R.id.chip_icon) != 0) {
+                // A chip reused from the idle actions still has their icon attached.
                 view.setTag(R.id.chip_icon, 0)
                 view.setCompoundDrawablesRelativeWithIntrinsicBounds(0, 0, 0, 0)
                 // アイコンボタン用に広げた左右の余白を元に戻す。

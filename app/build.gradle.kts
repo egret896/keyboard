@@ -117,6 +117,8 @@ android {
         sourceSets["main"].jniLibs.srcDir("src/zenzai/jniLibs")
     }
     androidResources.noCompress += "gguf"
+    // 英訳の辞書は圧縮せずに入れて、そのまま mmap で開く（メモリに読み込まない）
+    androidResources.noCompress += "jaen"
 
     packaging {
         // libmozc.so must stay page-aligned for the 16 KB page-size requirement on Android 15+.
